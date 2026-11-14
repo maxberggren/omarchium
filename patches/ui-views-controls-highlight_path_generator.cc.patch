@@ -1,0 +1,24 @@
+diff --git a/ui/views/controls/highlight_path_generator.cc b/ui/views/controls/highlight_path_generator.cc
+index b805a1aa32d12b5ca505b1b632437e0a3f2ecf3f..3bea4c14afe85f0ca735a0b8667784c2cec499c7 100644
+--- a/ui/views/controls/highlight_path_generator.cc
++++ b/ui/views/controls/highlight_path_generator.cc
+@@ -11,6 +11,7 @@
+ #include "ui/gfx/geometry/rounded_corners_f.h"
+ #include "ui/gfx/geometry/rrect_f.h"
+ #include "ui/gfx/geometry/skia_conversions.h"
++#include "ui/views/layout/layout_provider.h"
+ #include "ui/views/view.h"
+ #include "ui/views/view_class_properties.h"
+ 
+@@ -109,7 +110,10 @@ std::optional<gfx::RRectF> PillHighlightPathGenerator::GetRoundRect(
+     const gfx::RectF& rect) {
+   gfx::RectF bounds = rect;
+   const float corner_radius = std::min(bounds.width(), bounds.height()) / 2.f;
+-  return gfx::RRectF(bounds, corner_radius);
++  // Omarchium: pills follow the embedder's corner-radius rule too.
++  return gfx::RRectF(bounds, std::min(corner_radius,
++                                      static_cast<float>(LayoutProvider::FilterCornerRadius(
++                                          static_cast<int>(corner_radius + 0.5f)))));
+ }
+ 
+ void InstallPillHighlightPathGenerator(View* view) {
