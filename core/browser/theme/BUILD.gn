@@ -1,8 +1,6 @@
 # Copyright 2026 The Omarchium Authors
 # Use of this source code is governed by a BSD-style license.
 
-import("//testing/test.gni")
-
 # The default color map (core/resources/omarchy_color_map.json), compiled in.
 action("color_map_default") {
   script = "//omarchium/tools/embed_text.py"
@@ -69,14 +67,18 @@ executable("omarchium_color_dump") {
   ]
 }
 
-test("omarchium_unittests") {
+# Plain gtest binary (the test() template pulls in test fonts and data the
+# release tarball doesn't ship).
+executable("omarchium_unittests") {
+  testonly = true
   sources = [
     "omarchy_color_map_unittest.cc",
     "omarchy_palette_unittest.cc",
+    "tools/unittests_main.cc",
   ]
   deps = [
     ":color_map",
-    "//base/test:run_all_unittests",
+    "//base",
     "//testing/gtest",
   ]
 }
