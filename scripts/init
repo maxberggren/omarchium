@@ -1,0 +1,21 @@
+#!/bin/bash
+# One-shot setup: download Chromium, import it into chromium/src (git),
+# prepare it for the distro toolchain, and apply our patches.
+# Safe to re-run; finished steps are skipped.
+source "$(dirname "$0")/lib.sh"
+
+"$ROOT/scripts/fetch-source"
+"$ROOT/scripts/import-upstream"
+[[ -x $CACHE/crubit/target/release/cc_bindings_from_rs ]] || "$ROOT/scripts/build-crubit"
+
+if ! cgit rev-parse -q --verify "refs/tags/toolchain/$CHROMIUM_VERSION" >/dev/null; then
+  cgit checkout -q -f -B toolchain "upstream/$CHROMIUM_VERSION"
+  "$ROOT/scripts/prepare-toolchain"
+  log "committing toolchain prep"
+  cgit add -A  # out/ and the omarchium link are in .git/info/exclude
+  cgit commit -q -m "Toolchain prep for $CHROMIUM_VERSION (Arch $ARCH_PKG_COMMIT)"
+  cgit tag -f "toolchain/$CHROMIUM_VERSION" >/dev/null
+fi
+
+"$ROOT/scripts/apply-patches" "$@"
+log "ready: scripts/build"

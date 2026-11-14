@@ -1,0 +1,21 @@
+diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_browser_main.cc
+index 1651c5defa7c0e4e43c43097dc5148a35d93da77..7449ff7511a2d9490ab48b3b3d0e061fca853f06 100644
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -74,6 +74,7 @@
+ #include "chrome/browser/translate/translate_service.h"
+ #include "chrome/browser/ui/actions/chrome_actions.h"
+ #include "chrome/browser/ui/color/chrome_color_mixers.h"
++#include "omarchium/browser/theme/omarchy_theme_sync.h"
+ #include "chrome/browser/ui/javascript_dialogs/chrome_javascript_app_modal_dialog_view_factory.h"
+ #include "chrome/browser/ui/profiles/profile_error_dialog.h"
+ #include "chrome/browser/ui/startup/bad_flags_prompt.h"
+@@ -1055,6 +1056,8 @@ void ChromeBrowserMainParts::ToolkitInitialized() {
+       base::BindRepeating(color::AddComponentsColorMixers));
+   ui::ColorProviderManager::Get().AppendColorProviderInitializer(
+       base::BindRepeating(AddChromeColorMixers));
++  // Omarchium: follow the Omarchy theme. After Chrome's mixers, so ours win.
++  omarchium::OmarchyThemeSync::Start();
+ 
+   InitializeActionIdStringMapping();
+ }

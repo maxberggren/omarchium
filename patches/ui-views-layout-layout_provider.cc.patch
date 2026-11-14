@@ -1,0 +1,64 @@
+diff --git a/ui/views/layout/layout_provider.cc b/ui/views/layout/layout_provider.cc
+index b33457156a2ba28a81146146ba8c3c12403e3637..4b195f12d00af0ecfdd5e85486019fc236ac4396 100644
+--- a/ui/views/layout/layout_provider.cc
++++ b/ui/views/layout/layout_provider.cc
+@@ -8,6 +8,7 @@
+ 
+ #include "base/containers/fixed_flat_map.h"
+ #include "base/logging.h"
++#include "base/no_destructor.h"
+ #include "ui/base/ui_base_features.h"
+ #include "ui/gfx/font_list.h"
+ #include "ui/views/controls/focus_ring.h"
+@@ -188,8 +189,27 @@ gfx::Insets LayoutProvider::GetDialogInsetsForContentType(
+                            dialog_insets.right());
+ }
+ 
++namespace {
++LayoutProvider::CornerRadiusFilter& GetCornerRadiusFilter() {
++  static base::NoDestructor<LayoutProvider::CornerRadiusFilter> filter;
++  return *filter;
++}
++}  // namespace
++
++// static
++void LayoutProvider::SetCornerRadiusFilter(CornerRadiusFilter filter) {
++  GetCornerRadiusFilter() = std::move(filter);
++}
++
++// static
++int LayoutProvider::FilterCornerRadius(int radius) {
++  return GetCornerRadiusFilter() ? GetCornerRadiusFilter().Run(radius)
++                                 : radius;
++}
++
+ int LayoutProvider::GetCornerRadiusMetric(Emphasis emphasis,
+                                           const gfx::Size& size) const {
++  return FilterCornerRadius([&] {
+   switch (emphasis) {
+     case Emphasis::kNone:
+       return 0;
+@@ -201,6 +221,7 @@ int LayoutProvider::GetCornerRadiusMetric(Emphasis emphasis,
+     case Emphasis::kMaximum:
+       return std::min(size.width(), size.height()) / 2;
+   }
++  }());
+ }
+ 
+ ShapeSysTokens GetShapeSysToken(ShapeContextToken id) {
+@@ -245,6 +266,7 @@ int LayoutProvider::GetShadowElevationMetric(Emphasis emphasis) const {
+ 
+ int LayoutProvider::GetCornerRadiusMetric(ShapeSysTokens token,
+                                           const gfx::Size& size) const {
++  return FilterCornerRadius([&] {
+   switch (token) {
+     case ShapeSysTokens::kXSmall:
+       return 4;
+@@ -261,6 +283,7 @@ int LayoutProvider::GetCornerRadiusMetric(ShapeSysTokens token,
+     default:
+       return 0;
+   }
++  }());
+ }
+ 
+ }  // namespace views

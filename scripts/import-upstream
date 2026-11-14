@@ -1,0 +1,49 @@
+#!/bin/bash
+# Import a Chromium release tarball as a commit on the `upstream` branch of
+# chromium/src, tagged upstream/<version>.
+#
+#   scripts/import-upstream [<version>]
+#
+# Every release we've ever built stays in that branch's history, which is
+# what lets `git apply --3way` merge our patches onto a newer release.
+source "$(dirname "$0")/lib.sh"
+
+version=${1:-$CHROMIUM_VERSION}
+tarball=$(tarball_path "$version")
+
+[[ -f $tarball ]] || die "missing $tarball (run scripts/fetch-source $version)"
+
+if [[ -d $SRC/.git ]] && cgit rev-parse -q --verify "refs/tags/upstream/$version" >/dev/null; then
+  log "upstream/$version already imported"
+  exit 0
+fi
+
+stage=$ROOT/chromium/.import-$version
+rm -rf "$stage"; mkdir -p "$stage"
+log "extracting $(basename "$tarball") (takes a few minutes)"
+tar -xJf "$tarball" -C "$stage" --strip-components=1
+
+if [[ ! -d $SRC/.git ]]; then
+  mv "$stage" "$SRC"
+  cgit init -q -b upstream
+  cgit config feature.manyFiles true
+  cgit config core.untrackedCache true
+  cgit config gc.auto 0
+  cgit config user.name "${GIT_AUTHOR_NAME:-$(git config user.name || echo omarchium)}"
+  cgit config user.email "${GIT_AUTHOR_EMAIL:-$(git config user.email || echo omarchium@localhost)}"
+  cgit config core.autocrlf false
+  printf '/out/\n/omarchium\n' >"$SRC/.git/info/exclude"
+  echo '* -text' >"$SRC/.git/info/attributes"   # store the tarball byte-for-byte
+else
+  # Make the tree exactly the new tarball, on top of the previous release.
+  cgit checkout -q -f upstream
+  rsync -a --delete --exclude=/.git --exclude=/out --exclude=/omarchium "$stage/" "$SRC/"
+  rm -rf "$stage"
+fi
+
+log "committing Chromium $version (git add of ~400k files takes a while)"
+# -f: the tarball is authoritative even where its .gitignore files disagree.
+cgit add -A -f -- . ':!out' ':!omarchium'
+cgit commit -q --allow-empty -m "Chromium $version"
+cgit tag -f "upstream/$version" >/dev/null
+log "imported as upstream/$version"

@@ -1,0 +1,12 @@
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 814b9d649a31646c7bc072d882a5e11b70d5d6d6..74aef4b02c73661366a7ec846ad48e7af62edae7 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1046,6 +1046,7 @@ source_set("core") {
+   }
+ 
+   deps = [
++    "//omarchium/browser/theme",  # Omarchium: Omarchy theme sync
+     ":active_use_util",
+     ":after_startup_task_utils",
+     ":bad_message",

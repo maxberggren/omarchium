@@ -1,0 +1,61 @@
+#!/bin/bash
+# Move Omarchium to a new Chromium release.
+#
+#   scripts/upgrade <chromium-version> [<arch-pkg-tag>]
+#   scripts/upgrade latest
+#
+# 1. downloads + verifies the release tarball,
+# 2. snapshots Arch's matching build recipe (default tag: <version>-1),
+# 3. imports the release on top of the previous one (chromium/src `upstream`),
+# 4. re-runs toolchain prep, then
+# 5. re-applies patches/ with a 3-way merge.
+#
+# Patches that don't merge are left with conflict markers; fix them, run
+# scripts/export-patches, then scripts/build. Nothing here touches your
+# installed browser.
+source "$(dirname "$0")/lib.sh"
+
+new=${1:-}
+[[ -n $new ]] || die "usage: scripts/upgrade <chromium-version>|latest [<arch-pkg-tag>]"
+if [[ $new == latest ]]; then
+  new=$(curl -fsS "https://chromiumdash.appspot.com/fetch_releases?channel=Stable&platform=Linux&num=1" |
+    python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["version"])')
+  log "latest stable: $new"
+fi
+arch_tag=${2:-$new-1}
+[[ $new != "$CHROMIUM_VERSION" ]] || die "already on $new"
+
+# Don't lose work: everything changed in chromium/src must be in patches/.
+if [[ -d $SRC/.git ]]; then
+  "$ROOT/scripts/export-patches" >/dev/null
+  if [[ -n $(git -C "$ROOT" status --porcelain -- patches) ]]; then
+    die "patches/ has uncommitted changes (just exported from chromium/src); commit them first"
+  fi
+fi
+
+log "Chromium $CHROMIUM_VERSION -> $new"
+sha=$("$ROOT/scripts/fetch-source" "$new" | tail -1)
+
+if ! git -C "$CACHE/arch-chromium" fetch -q --tags origin 2>/dev/null ||
+   ! git -C "$CACHE/arch-chromium" rev-parse -q --verify "refs/tags/$arch_tag" >/dev/null; then
+  warn "Arch has no $arch_tag yet; keeping build-patches/ from $ARCH_PKG_COMMIT (may need fixes)"
+  arch_tag=$ARCH_PKG_COMMIT
+else
+  "$ROOT/scripts/sync-arch-recipe" "$arch_tag"
+fi
+
+# Arch pins the Crubit revision that builds with stable Rust.
+crubit=$(grep -E '^_crubit_rev=' "$ROOT/build-patches/PKGBUILD.arch" | tail -1 | cut -d= -f2)
+
+sed -i \
+  -e "s/^CHROMIUM_VERSION=.*/CHROMIUM_VERSION=$new/" \
+  -e "s/^CHROMIUM_SHA256=.*/CHROMIUM_SHA256=$sha/" \
+  -e "s/^ARCH_PKG_COMMIT=.*/ARCH_PKG_COMMIT=$arch_tag/" \
+  ${crubit:+-e "s/^CRUBIT_REV=.*/CRUBIT_REV=$crubit/"} \
+  "$ROOT/omarchium.conf"
+source "$ROOT/omarchium.conf"
+
+"$ROOT/scripts/build-crubit"
+"$ROOT/scripts/init" --force
+
+log "upgraded to $new. Next: scripts/build, then commit omarchium.conf, build-patches/ and patches/."

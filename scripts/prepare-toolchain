@@ -1,0 +1,68 @@
+#!/bin/bash
+# Make a pristine Chromium tree buildable with the distro toolchain.
+# Mirrors prepare() in build-patches/PKGBUILD.arch; keep the two in step
+# (scripts/sync-arch-recipe prints Arch's changes when you upgrade).
+#
+# Runs inside chromium/src on top of the upstream/<version> commit.
+source "$(dirname "$0")/lib.sh"
+cd "$SRC"
+
+log "applying Arch build patches"
+skip=$(awk -v m="$(uname -m)" '$1==m{print $2}' "$ROOT/build-patches/series.skip" 2>/dev/null || true)
+while read -r p; do
+  [[ -n $p ]] || continue
+  if grep -qxF "$p" <<<"$skip"; then warn "skipping $p on $(uname -m)"; continue; fi
+  patch -Np1 --no-backup-if-mismatch -s -i "$ROOT/build-patches/$p" || die "build patch failed: $p"
+done <"$ROOT/build-patches/series"
+
+# Allow building against system libraries in official builds
+sed -i 's/OFFICIAL_BUILD/GOOGLE_CHROME_BUILD/' tools/generate_shim_headers/generate_shim_headers.py
+
+# https://crbug.com/893950
+sed -i -e 's/\<xmlMalloc\>/malloc/' -e 's/\<xmlFree\>/free/' -e '1i #include <cstdlib>' \
+  third_party/blink/renderer/core/xml/*.cc \
+  third_party/blink/renderer/core/xml/parser/xml_document_parser.cc \
+  third_party/libxml/chromium/*.cc
+
+# The unbundled brotli doesn't provide brotli:headers
+sed -i '/brotli:headers/ d' third_party/pdfium/core/fxcodec/BUILD.gn
+
+log "linking system tools into the tree"
+rust_sysroot=$(rustc --print sysroot)
+link() { mkdir -p "$(dirname "$2")"; ln -sfn "$1" "$2"; }
+# Chromium picks the directory by host CPU; we're an arm64 host but some
+# scripts still hard-code the x64 names, so provide both.
+for d in node-linux-x64 node-linux-arm64; do link /usr/bin/node third_party/node/linux/$d/bin/node; done
+for d in linux-amd64 linux-arm64; do link /usr/bin/go third_party/dawn/tools/golang/$d/bin/go; done
+link /usr/bin/java third_party/jdk/current/bin/java
+link "$rust_sysroot/bin/rustc" third_party/rust-toolchain/bin/rustc
+rm -f third_party/gperf/cipd/bin/gperf
+link /usr/bin/gperf third_party/gperf/cipd/bin/gperf
+rm -rf third_party/devtools-frontend/src/node_modules/esbuild
+link /usr/lib/node_modules/esbuild third_party/devtools-frontend/src/node_modules/esbuild
+
+# Crubit: support libraries + the cc_bindings_from_rs we built with our rustc.
+crubit_bin=$CACHE/crubit/target/release/cc_bindings_from_rs
+[[ -x $crubit_bin ]] || die "build crubit first (scripts/build-crubit)"
+link "$CACHE/crubit" third_party/rust-toolchain/crubit/lib/third_party/crubit
+install -Dm755 "$crubit_bin" third_party/rust-toolchain/crubit/bin/cc_bindings_from_rs
+
+log "unbundling system libraries"
+# Same set as Arch (keys of _system_libs in PKGBUILD.arch).
+system_libs=(brotli dav1d double-conversion flac fontconfig freetype harfbuzz highway libdrm
+  libjpeg libwebp libxml libxslt openh264 opus simdutf zlib zstd)
+for lib in "${system_libs[@]}"; do
+  name=$lib
+  [[ $lib == libjpeg ]] && name=libjpeg_turbo
+  dir=third_party/$name
+  [[ -d $dir ]] || dir=base/third_party/${name//-/_}
+  find "$dir" -type f \
+    \! -path "$dir/chromium/*" \
+    \! -path "$dir/google/*" \
+    \! -path "third_party/harfbuzz-ng/utils/hb_scoped.h" \
+    \! -regex '.*\.\(gn\|gni\|isolate\)' \
+    -delete
+done
+python3 build/linux/unbundle/replace_gn_files.py --system-libraries "${system_libs[@]}"
+
+log "toolchain prep done"

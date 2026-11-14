@@ -1,0 +1,29 @@
+#!/bin/bash
+# Download (and verify) a Chromium release tarball into .cache/.
+#   scripts/fetch-source [<version> [<sha256>]]
+source "$(dirname "$0")/lib.sh"
+
+version=${1:-$CHROMIUM_VERSION}
+sha=${2:-}
+[[ -z $sha && $version == "$CHROMIUM_VERSION" ]] && sha=$CHROMIUM_SHA256
+out=$(tarball_path "$version")
+mkdir -p "$CACHE"
+
+if [[ ! -f $out ]]; then
+  log "downloading Chromium $version source" >&2
+  curl -fL --retry 5 -C - -o "$out.part" \
+    "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-$version-lite.tar.xz"
+  mv "$out.part" "$out"
+fi
+
+if [[ -n $sha ]]; then
+  echo "$sha  $out" | sha256sum -c --quiet || die "checksum mismatch for $out"
+else
+  # Google publishes a hash file next to each tarball.
+  want=$(curl -fsL "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-$version-lite.tar.xz.hashes" |
+    awk '$1=="sha256"{print $2}')
+  [[ -n $want ]] || die "no published sha256 for $version"
+  echo "$want  $out" | sha256sum -c --quiet || die "checksum mismatch for $out"
+  sha=$want
+fi
+echo "$sha"   # last line: the verified sha256 (scripts/upgrade reads it)

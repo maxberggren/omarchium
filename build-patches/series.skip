@@ -1,0 +1,7 @@
+# Arch patches we must NOT apply, as "<uname -m> <patch>". Kept across
+# scripts/sync-arch-recipe runs.
+#
+# Arch x86_64's compiler-rt installs to lib/clang/N/lib/linux/*-x86_64.a;
+# Arch Linux ARM's keeps LLVM's per-target layout, which is what Chromium
+# expects out of the box.
+aarch64 compiler-rt-adjust-paths.patch

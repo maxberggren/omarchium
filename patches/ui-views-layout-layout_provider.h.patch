@@ -1,0 +1,25 @@
+diff --git a/ui/views/layout/layout_provider.h b/ui/views/layout/layout_provider.h
+index 9656e102aa7b2d6fb1a71f442e3eb12b89366907..c2bdfb20551d5a25e01122d6b0d329eb5abba97d 100644
+--- a/ui/views/layout/layout_provider.h
++++ b/ui/views/layout/layout_provider.h
+@@ -5,6 +5,7 @@
+ #ifndef UI_VIEWS_LAYOUT_LAYOUT_PROVIDER_H_
+ #define UI_VIEWS_LAYOUT_LAYOUT_PROVIDER_H_
+ 
++#include "base/functional/callback.h"
+ #include "ui/gfx/geometry/insets.h"
+ #include "ui/gfx/geometry/size.h"
+ #include "ui/gfx/shadow_value.h"
+@@ -210,6 +211,12 @@ class VIEWS_EXPORT LayoutProvider {
+   // View::GetLayoutProvider().
+   static LayoutProvider* Get();
+ 
++  // Omarchium: an embedder-wide cap on corner radii (e.g. the window
++  // manager's). Applied to every shape token and a few layout constants.
++  using CornerRadiusFilter = base::RepeatingCallback<int(int radius)>;
++  static void SetCornerRadiusFilter(CornerRadiusFilter filter);
++  static int FilterCornerRadius(int radius);
++
+   // Calculates the control height based on the |font|'s reported glyph height,
+   // the default line spacing and DISTANCE_CONTROL_VERTICAL_TEXT_PADDING.
+   static int GetControlHeightForFont(int context,

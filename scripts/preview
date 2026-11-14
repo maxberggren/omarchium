@@ -1,0 +1,6 @@
+#!/bin/bash
+# Look-and-feel preview: renders a mock of the browser UI for every installed
+# Omarchy theme from core/resources/omarchy_color_map.json (or your override
+# in ~/.config/omarchium/color-map.json). Edits and theme switches show up live.
+#   scripts/preview [--port 8787]
+exec python3 -I "$(dirname "$0")/../preview/server.py" "$@"

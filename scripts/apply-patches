@@ -1,0 +1,37 @@
+#!/bin/bash
+# (Re)create the `omarchium` branch in chromium/src: toolchain/<version> plus
+# everything in patches/, and link core/ into the tree as //omarchium.
+#
+# Patches are applied with `git apply --3way`, so after an upgrade most of
+# them merge on their own; the ones that don't are left with conflict markers.
+# Fix those, then run scripts/export-patches.
+source "$(dirname "$0")/lib.sh"
+
+base=toolchain/$CHROMIUM_VERSION
+cgit rev-parse -q --verify "refs/tags/$base" >/dev/null || die "no $base tag (run scripts/init)"
+
+if [[ -n $(cgit status --porcelain --untracked-files=no) ]]; then
+  [[ ${1:-} == --force ]] || die "chromium/src has uncommitted changes; run scripts/export-patches first (or pass --force to discard them)"
+fi
+
+cgit checkout -q -f -B omarchium "$base"
+ln -sfn "$CORE" "$SRC/omarchium"
+
+shopt -s nullglob
+failed=()
+for p in "$ROOT"/patches/*.patch; do
+  if ! cgit apply --3way --whitespace=nowarn "$p" 2>/dev/null; then
+    failed+=("${p##*/}")
+  fi
+done
+
+if ((${#failed[@]})); then
+  warn "these patches need a manual merge (conflict markers are in the tree):"
+  printf '    %s\n' "${failed[@]}" >&2
+  warn "resolve them in chromium/src, then run scripts/export-patches"
+  exit 1
+fi
+
+cgit add -A  # out/ and the omarchium link are in .git/info/exclude
+cgit commit -q --allow-empty -m "Omarchium patches ($(ls "$ROOT"/patches/*.patch 2>/dev/null | wc -l) files)"
+log "omarchium branch ready on $base"

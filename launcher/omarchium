@@ -1,0 +1,17 @@
+#!/bin/bash
+# Omarchium launcher.
+config=${XDG_CONFIG_HOME:-$HOME/.config}
+flags_file=$config/omarchium-flags.conf
+[[ -f $flags_file ]] || flags_file=$config/chromium-flags.conf
+
+flags=()
+if [[ -f $flags_file ]]; then
+  while IFS= read -r line; do
+    [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
+    flags+=("$line")
+  done <"$flags_file"
+fi
+
+export CHROME_DESKTOP=omarchium.desktop
+exec "$(dirname "$(readlink -f "$0")")/../lib/omarchium/chrome" \
+  --user-data-dir="$config/omarchium" --class=omarchium "${flags[@]}" "$@"

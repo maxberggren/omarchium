@@ -1,0 +1,82 @@
+# Copyright 2026 The Omarchium Authors
+# Use of this source code is governed by a BSD-style license.
+
+import("//testing/test.gni")
+
+# The default color map (core/resources/omarchy_color_map.json), compiled in.
+action("color_map_default") {
+  script = "//omarchium/tools/embed_text.py"
+  inputs = [ "//omarchium/resources/omarchy_color_map.json" ]
+  outputs = [ "$root_gen_dir/omarchium/grit/omarchy_color_map_default.h" ]
+  args = [
+    rebase_path(inputs[0], root_build_dir),
+    rebase_path(outputs[0], root_build_dir),
+    "kOmarchyColorMapDefault",
+  ]
+}
+
+# Palette + color map: no browser dependencies, shared by the tests and tools.
+source_set("color_map") {
+  sources = [
+    "omarchy_color_map.cc",
+    "omarchy_color_map.h",
+    "omarchy_palette.cc",
+    "omarchy_palette.h",
+  ]
+  public_deps = [
+    "//skia",
+    "//ui/color:color_headers",
+  ]
+  deps = [
+    ":color_map_default",
+    "//base",
+    "//chrome/browser/ui/color:color_headers",
+    "//components/color:color_headers",
+    "//ui/gfx:color_utils",
+  ]
+}
+
+source_set("theme") {
+  sources = [
+    "hyprland_ipc.cc",
+    "hyprland_ipc.h",
+    "omarchy_font.cc",
+    "omarchy_font.h",
+    "omarchy_color_mixer.cc",
+    "omarchy_color_mixer.h",
+    "omarchy_theme_sync.cc",
+    "omarchy_theme_sync.h",
+  ]
+  public_deps = [ ":color_map" ]
+  deps = [
+    "//base",
+    "//third_party/fontconfig",
+    "//ui/base",
+    "//ui/color",
+    "//ui/gfx",
+    "//ui/native_theme",
+    "//ui/views",
+  ]
+}
+
+# Prints the colors a theme resolves to, as JSON. Used by
+# scripts/check-preview to prove the HTML preview matches the browser.
+executable("omarchium_color_dump") {
+  sources = [ "tools/color_dump_main.cc" ]
+  deps = [
+    ":color_map",
+    "//base",
+  ]
+}
+
+test("omarchium_unittests") {
+  sources = [
+    "omarchy_color_map_unittest.cc",
+    "omarchy_palette_unittest.cc",
+  ]
+  deps = [
+    ":color_map",
+    "//base/test:run_all_unittests",
+    "//testing/gtest",
+  ]
+}

@@ -1,0 +1,75 @@
+#!/bin/bash
+# Build Omarchium.
+#   scripts/build [ninja targets...]      (default: chrome chrome_sandbox)
+#
+# OMARCHIUM_OFFICIAL=1 makes an is_official_build (ThinLTO, slower, smaller,
+# faster at runtime). The default is a plain optimized release build, which
+# is what you want while iterating.
+source "$(dirname "$0")/lib.sh"
+cd "$SRC"
+[[ -L omarchium ]] || ln -sfn "$CORE" omarchium
+
+export CC=clang CXX=clang++ AR=ar NM=nm
+# Deterministic, warning-tolerant flags (same as Arch's build()).
+export CFLAGS="-Wno-builtin-macro-redefined -Wno-unknown-warning-option"
+export CXXFLAGS="$CFLAGS"
+export CPPFLAGS="-D__DATE__= -D__TIME__= -D__TIMESTAMP__="
+
+rust_sysroot=$(rustc --print sysroot)
+clang_version=$(clang --version | grep -m1 -oP 'version \K[0-9]+')
+site_packages=$(/usr/bin/python3 -c "import site; print(site.getsitepackages()[0])")
+
+args=(
+  'custom_toolchain="//build/toolchain/linux/unbundle:default"'
+  'host_toolchain="//build/toolchain/linux/unbundle:default"'
+  'is_debug=false'
+  'symbol_level=0'
+  'blink_symbol_level=0'
+  'v8_symbol_level=0'
+  'treat_warnings_as_errors=false'
+  'fatal_linker_warnings=false'
+  'disable_fieldtrial_testing_config=true'
+  'blink_enable_generated_code_formatting=false'
+  'ffmpeg_branding="Chrome"'
+  'proprietary_codecs=true'
+  'rtc_use_pipewire=true'
+  'link_pulseaudio=true'
+  'use_custom_libcxx=true'
+  'use_sysroot=false'
+  'use_system_libffi=true'
+  'enable_hangout_services_extension=true'
+  'enable_widevine=true'
+  'use_qt5=false'
+  'use_qt6=true'
+  'moc_qt6_path="/usr/lib/qt6"'
+  'use_clang_modules=false'
+  'use_mold=false'                 # bundled mold is an x86-64 binary; use system lld
+  'rust_crubit_root="//third_party/rust-toolchain/crubit/"'
+  'clang_base_path="/usr"'
+  'clang_use_chrome_plugins=false'
+  "clang_version=\"$clang_version\""
+  'chrome_pgo_phase=0'
+  'v8_metagen_libclang_so="/usr/lib/libclang.so"'
+  "v8_metagen_libclang_bindings_dir=\"$site_packages\""
+  "rust_sysroot_absolute=\"$rust_sysroot\""
+  'rust_bindgen_root="/usr"'
+  "rustc_version=\"$(rustc --version | awk '{print $2}')\""
+)
+if [[ ${OMARCHIUM_OFFICIAL:-0} == 1 ]]; then
+  args+=('is_official_build=true')
+else
+  args+=('is_official_build=false' 'dcheck_always_on=false')
+fi
+
+mkdir -p "$OUT"
+new_args=$(printf '%s\n' "${args[@]}")
+if [[ ! -f $OUT/args.gn || $(<"$OUT/args.gn") != "$new_args" ]]; then
+  printf '%s\n' "$new_args" >"$OUT/args.gn"
+  log "gn gen $OUT"
+  gn gen "$OUT"
+fi
+
+targets=("$@")
+((${#targets[@]})) || targets=(chrome chrome_sandbox)
+log "ninja ${targets[*]}"
+exec ninja -C "$OUT" "${targets[@]}"

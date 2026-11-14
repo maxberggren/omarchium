@@ -1,0 +1,39 @@
+diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
+index b8206dc188be35798ee3dc23869ea79fd3192791..64f8c7189911f8e175d5312a51a1139f55aee854 100644
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -12,6 +12,7 @@
+ #include "ui/base/pointer/touch_ui_controller.h"
+ #include "ui/base/ui_base_features.h"
+ #include "ui/gfx/geometry/insets.h"
++#include "ui/views/layout/layout_provider.h"
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+ #include "chromeos/constants/chromeos_features.h"
+@@ -19,6 +20,7 @@
+ 
+ int GetLayoutConstant(LayoutConstant constant) {
+   const bool touch_ui = ui::TouchUiController::Get()->touch_ui();
++  const int value = [&] {
+   switch (constant) {
+     case LayoutConstant::kAppMenuProfileRowAvatarIconSize:
+       return 24;
+@@ -193,6 +195,18 @@ int GetLayoutConstant(LayoutConstant constant) {
+       break;
+   }
+   NOTREACHED();
++  }();
++  // Omarchium: corner radii follow the window manager's.
++  switch (constant) {
++    case LayoutConstant::kLocationBarChildCornerRadius:
++    case LayoutConstant::kMainBackgroundRegionCornerRadius:
++    case LayoutConstant::kToolbarDividerCornerRadius:
++    case LayoutConstant::kToolbarCornerRadius:
++    case LayoutConstant::kVerticalTabCornerRadius:
++      return views::LayoutProvider::FilterCornerRadius(value);
++    default:
++      return value;
++  }
+ }
+ 
+ gfx::Insets GetLayoutInsets(LayoutInset inset) {

@@ -1,0 +1,22 @@
+[Desktop Entry]
+Version=1.0
+Name=Omarchium
+GenericName=Web Browser
+Comment=Chromium that follows your Omarchy theme
+Exec=@BIN@ %U
+StartupNotify=true
+StartupWMClass=omarchium
+Terminal=false
+Icon=omarchium
+Type=Application
+Categories=Network;WebBrowser;
+MimeType=text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
+Actions=new-window;new-private-window;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=@BIN@
+
+[Desktop Action new-private-window]
+Name=New Incognito Window
+Exec=@BIN@ --incognito

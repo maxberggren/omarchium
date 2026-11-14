@@ -1,0 +1,24 @@
+diff --git a/ui/gfx/platform_font_skia.h b/ui/gfx/platform_font_skia.h
+index a75e01d65a88793194339fbfabb4066823233b39..87d60e4cd02192afbc555b8422c2dd52cccbb602 100644
+--- a/ui/gfx/platform_font_skia.h
++++ b/ui/gfx/platform_font_skia.h
+@@ -6,6 +6,7 @@
+ #define UI_GFX_PLATFORM_FONT_SKIA_H_
+ 
+ #include <memory>
++#include <optional>
+ #include <string>
+ 
+ #include "build/build_config.h"
+@@ -46,6 +47,11 @@ class COMPONENT_EXPORT(GFX) PlatformFontSkia : public PlatformFont {
+   //
+   static void SetDefaultFontDescription(const std::string& font_description);
+ 
++  // Omarchium: replaces the family the toolkit reports for the default UI
++  // font (size, weight and rendering still come from the toolkit). Call
++  // ReloadDefaultFont() afterwards.
++  static void SetDefaultFontFamilyOverride(std::optional<std::string> family);
++
+   // Overridden from PlatformFont:
+   Font DeriveFont(int size_delta,
+                   int style,

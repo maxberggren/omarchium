@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omarchium Preview</title>
+<style>
+  :root { color-scheme: dark; --ui-bg: #111; --ui-fg: #ddd; --ui-dim: #888; --ui-line: #2a2a2a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ui-bg); color: var(--ui-fg);
+         font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header.bar { position: sticky; top: 0; z-index: 10; display: flex; gap: 12px; align-items: center;
+               flex-wrap: wrap; padding: 10px 16px; background: #0b0b0b; border-bottom: 1px solid var(--ui-line); }
+  header.bar h1 { font-size: 14px; margin: 0 8px 0 0; letter-spacing: .02em; }
+  header.bar select, header.bar button { background: #1c1c1c; color: var(--ui-fg); border: 1px solid #333;
+               border-radius: 6px; padding: 5px 9px; font: inherit; cursor: pointer; }
+  header.bar button[aria-pressed="true"] { background: #2d2d2d; border-color: #666; }
+  header.bar .meta { color: var(--ui-dim); margin-left: auto; font-size: 12px; }
+  main { padding: 20px 16px 60px; }
+  .errors { background: #3a1010; color: #ffb4b4; border: 1px solid #742; border-radius: 6px;
+            padding: 8px 12px; margin-bottom: 16px; white-space: pre-wrap; font: 12px ui-monospace, monospace; }
+  .errors:empty { display: none; }
+  .caption { color: var(--ui-dim); margin: 0 0 8px; font-size: 12px; }
+  .caption b { color: var(--ui-fg); font-weight: 600; }
+
+  /* ---- the mock browser; every color comes from --c-* vars ---- */
+  .win { width: 100%; max-width: 1180px; border-radius: var(--r-window); overflow: hidden; position: relative;
+         box-shadow: 0 10px 40px rgb(0 0 0 / .5); font-size: 12.5px; user-select: none;
+         font-family: var(--ui-font, system-ui, sans-serif);
+         background: var(--c-frame); color: var(--c-tab-fg); }
+  .win.inactive { background: var(--c-frame-inactive); }
+  .tabs { display: flex; align-items: flex-end; height: 40px; padding: 0 8px; gap: 0; }
+  .tab { position: relative; display: flex; align-items: center; gap: 8px; width: 210px; height: 34px;
+         padding: 0 12px; border-radius: var(--r-tab) var(--r-tab) 0 0; color: var(--c-tab-fg); }
+  .tab + .tab::before { content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 1px;
+         background: var(--c-tab-divider); }
+  .tab.active + .tab::before, .tab.active::before { display: none; }
+  .tab.active { background: var(--c-toolbar); color: var(--c-tab-fg-active); }
+  .tab.hover { background: var(--c-tab-hover); border-radius: var(--r-tab); height: 28px; margin-bottom: 4px; }
+  .tab .fav { width: 16px; height: 16px; border-radius: 4px; flex: none; }
+  .tab .x { margin-left: auto; opacity: .8; }
+  .tab .title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .newtab { margin: 0 0 7px 6px; width: 28px; height: 28px; display: grid; place-items: center;
+            color: var(--c-newtab-fg); border-radius: var(--r-btn28); }
+  .tabs .caption-btns { margin-left: auto; display: flex; gap: 14px; padding: 0 6px 11px; color: var(--c-tab-fg); }
+  .toolbar { display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 8px;
+             background: var(--c-toolbar); color: var(--c-toolbar-icon); }
+  .ibtn { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--r-btn32); flex: none; }
+  .ibtn.hover { background: var(--c-toolbar-hover); }
+  .ibtn.dim { color: var(--c-toolbar-icon-inactive); }
+  svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8;
+          stroke-linecap: round; stroke-linejoin: round; }
+  .omnibox { flex: 1; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 14px;
+             border-radius: var(--r-omnibox); background: var(--c-omnibox); color: var(--c-omnibox-fg); margin: 0 6px; }
+  .omnibox.focused { border-radius: var(--r-omnibox) var(--r-omnibox) 0 0; background: var(--c-popup);
+             box-shadow: 0 0 0 2px var(--c-focus-ring) inset; }
+  .omnibox .dim { color: var(--c-omnibox-dim); }
+  .omnibox .sel { background: var(--c-text-highlight); color: var(--c-on-text-highlight); }
+  .omnibox .star { margin-left: auto; color: var(--c-toolbar-icon); }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--c-primary); color: var(--c-on-primary);
+            display: grid; place-items: center; font-weight: 600; font-size: 11px; }
+  .bookmarks { display: flex; gap: 2px; height: 30px; align-items: center; padding: 0 10px;
+               background: var(--c-bookmark-bg); color: var(--c-bookmark-fg);
+               border-bottom: 1px solid var(--c-toolbar-separator); }
+  .bm { display: flex; gap: 6px; align-items: center; padding: 4px 8px; border-radius: var(--r-btn24); }
+  .bm.hover { background: var(--c-toolbar-hover); }
+  .bm i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .body { display: flex; height: 520px; background: var(--c-ntp); }
+  .ntp { flex: 1; display: flex; flex-direction: column; align-items: center; padding-top: 70px;
+         font-family: system-ui, sans-serif; /* WebUI: keeps web fonts */
+         color: var(--c-ntp-fg); }
+  .logo { font-size: 46px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 26px; color: var(--c-ntp-logo); }
+  .ntp-search { width: 520px; max-width: 80%; height: 46px; border-radius: 23px; display: flex; align-items: center;
+                gap: 12px; padding: 0 18px; background: var(--c-ntp-search); color: var(--c-ntp-search-fg); }
+  .tiles { display: grid; grid-template-columns: repeat(5, 92px); gap: 14px; margin-top: 30px; }
+  .tile { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px; border-radius: 12px;
+          font-size: 11.5px; color: var(--c-ntp-fg); }
+  .tile.hover { background: var(--c-ntp-tile-hover); }
+  .tile .disc { width: 46px; height: 46px; border-radius: 50%; background: var(--c-ntp-tile);
+                display: grid; place-items: center; color: var(--c-on-ntp-tile); font-weight: 600; }
+  .sidepanel { width: 300px; background: var(--c-sidepanel); color: var(--c-surface-fg); padding: 14px;
+               display: flex; flex-direction: column; gap: 10px; border-left: 1px solid var(--c-divider); }
+  .sp-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+  .card { background: var(--c-surface); border-radius: var(--r-12); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .card .sub { color: var(--c-surface-fg-subtle); font-size: 11.5px; }
+  .card a { color: var(--c-link); text-decoration: none; }
+  .chip { align-self: flex-start; padding: 4px 10px; border-radius: var(--r-8); background: var(--c-tonal); color: var(--c-on-tonal); font-size: 11.5px; }
+  .progress { height: 4px; border-radius: 2px; background: var(--c-progress-bg); overflow: hidden; }
+  .progress > div { width: 62%; height: 100%; background: var(--c-progress); }
+
+  /* floating surfaces */
+  .popup { position: absolute; left: 92px; right: 220px; top: 79px; background: var(--c-popup);
+           color: var(--c-popup-fg); border-radius: 0 0 var(--r-16) var(--r-16); padding: 6px 0 10px;
+           box-shadow: 0 8px 20px rgb(0 0 0 / .35); z-index: 3; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 7px 16px; }
+  .row.hover { background: var(--c-popup-hover); }
+  .row .ic { color: var(--c-popup-icon); }
+  .row .url { color: var(--c-popup-url); }
+  .row .dim { color: var(--c-popup-dim); }
+  .menu { position: absolute; right: 10px; top: 80px; width: 250px; background: var(--c-menu); color: var(--c-menu-fg);
+          border-radius: var(--r-12); padding: 6px 0; box-shadow: 0 8px 26px rgb(0 0 0 / .4); z-index: 4; }
+  .menu .mi { display: flex; justify-content: space-between; padding: 6px 16px; }
+  .menu .mi.hover { background: var(--c-menu-hover); }
+  .menu .mi .k { color: var(--c-menu-dim); }
+  .menu .mi.dis { color: var(--c-disabled); }
+  .menu hr { border: 0; border-top: 1px solid var(--c-menu-sep); margin: 6px 0; }
+  .dialog { position: absolute; left: 50%; top: 270px; transform: translateX(-60%); width: 420px;
+            background: var(--c-dialog); color: var(--c-dialog-fg); border-radius: var(--r-12); padding: 20px;
+            box-shadow: 0 12px 40px rgb(0 0 0 / .5); z-index: 5; display: flex; flex-direction: column; gap: 12px; }
+  .dialog h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--c-dialog-title); }
+  .dialog p { margin: 0; color: var(--c-dialog-fg); }
+  .field { height: 34px; border-radius: var(--r-8); border: 1px solid var(--c-field-border); background: var(--c-field-bg);
+           padding: 0 10px; display: flex; align-items: center; color: var(--c-surface-fg); }
+  .field.focus { border: 2px solid var(--c-focus-ring); }
+  .ctl { display: flex; align-items: center; gap: 10px; }
+  .toggle { width: 34px; height: 18px; border-radius: 9px; background: var(--c-toggle-track); position: relative; flex: none; }
+  .toggle::after { content: ""; position: absolute; top: 3px; left: 19px; width: 12px; height: 12px; border-radius: 50%; background: var(--c-toggle-thumb); }
+  .toggle.off { background: var(--c-toggle-track-off); }
+  .toggle.off::after { left: 3px; background: var(--c-toggle-thumb-off); }
+  .check { width: 16px; height: 16px; border-radius: 3px; background: var(--c-primary); color: var(--c-on-primary);
+           display: grid; place-items: center; font-size: 11px; flex: none; }
+  .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .btn { padding: 7px 16px; border-radius: var(--r-btn32); font-weight: 500; }
+  .btn.outline { border: 1px solid var(--c-button-border); color: var(--c-button-fg); }
+  .btn.tonal { background: var(--c-tonal); color: var(--c-on-tonal); }
+  .btn.prominent { background: var(--c-primary); color: var(--c-on-primary); }
+  .scrim { position: absolute; inset: 40px 0 0; background: var(--c-scrim); z-index: 4; }
+
+  /* gallery */
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+  .gallery .cell { cursor: pointer; }
+  .gallery .cell .scaler { height: 183px; overflow: hidden; border-radius: 8px; }
+  .gallery .cell .win { width: 1180px; max-width: none; transform: scale(.288); transform-origin: 0 0; }
+  .gallery .cell.current .scaler { outline: 2px solid #8ab4f8; outline-offset: 3px; }
+  .gallery .name { margin-top: 8px; font-size: 12px; color: var(--ui-dim); }
+  .gallery .name b { color: var(--ui-fg); }
+
+  /* tokens */
+  table.tokens { border-collapse: collapse; margin-top: 24px; font: 12px ui-monospace, monospace; }
+  table.tokens td, table.tokens th { padding: 3px 10px; border-bottom: 1px solid var(--ui-line); text-align: left; }
+  table.tokens th { color: var(--ui-dim); font-weight: 500; }
+  .sw { width: 34px; height: 16px; border-radius: 3px; border: 1px solid #444;
+        background-image: linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%),
+                          linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%);
+        background-size: 8px 8px; background-position: 0 0, 4px 4px; position: relative; }
+  .sw > i { position: absolute; inset: 0; border-radius: 2px; }
+  .hidden { display: none !important; }
+  @media (max-width: 700px) { .win { font-size: 11px; } .sidepanel, .tiles, .menu { display: none; } }
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>Omarchium preview</h1>
+  <select id="theme" aria-label="Theme"></select>
+  <button id="view-single" aria-pressed="true">Window</button>
+  <button id="view-gallery" aria-pressed="false">All themes</button>
+  <button id="toggle-overlays" aria-pressed="true">Menus &amp; dialog</button>
+  <button id="toggle-inactive" aria-pressed="false">Inactive window</button>
+  <span class="meta" id="meta"></span>
+</header>
+<main>
+  <div class="errors" id="errors"></div>
+  <section id="single"></section>
+  <section id="gallery" class="gallery hidden"></section>
+  <section id="tokens"></section>
+</main>
+
+<script type="module">
+import { evaluateMap, mix, toCss, toHex, parsePalette, shapeTarget, scaleRadius } from "./colormap.js";
+
+// How Chromium paints each mocked region, as (token, recipe) pairs traced
+// from upstream's mixers (chrome/browser/ui/color/material_chrome_color_mixer.cc,
+// ui/color/material_ui_color_mixer.cc, ...). `pin` names the chrome/ui color
+// id, so entries in the map's "chrome" section override that region here too.
+const PAINT = (over, under) => (over[0] === 255 ? over : mix([255, over[1], over[2], over[3]], under, over[0] / 255));
+const REGIONS = [
+  ["frame", "kColorFrameActive", (s) => s.kColorSysHeader],
+  ["frame-inactive", "kColorFrameInactive", (s) => s.kColorSysHeaderInactive],
+  ["toolbar", "kColorToolbar", (s) => s.kColorSysBase],
+  ["toolbar-icon", "kColorToolbarButtonIcon", (s) => s.kColorSysOnSurfaceSecondary],
+  ["toolbar-icon-inactive", "kColorToolbarButtonIconInactive", (s, r) => PAINT(s.kColorSysStateDisabled, r.toolbar)],
+  ["toolbar-hover", "kColorToolbarInkDropHover", (s, r) => PAINT(s.kColorSysStateHoverOnSubtle, r.toolbar)],
+  ["toolbar-separator", "kColorToolbarSeparator", (s) => s.kColorSysDivider],
+  ["tab-fg", "kColorTabForegroundInactiveFrameActive", (s) => s.kColorSysOnSurfaceSecondary],
+  ["tab-fg-active", "kColorTabForegroundActiveFrameActive", (s) => s.kColorSysOnSurface],
+  ["tab-hover", "kColorTabBackgroundInactiveHoverFrameActive", (s) => s.kColorSysStateHeaderHover],
+  ["tab-divider", "kColorTabDividerFrameActive", (s) => s.kColorSysOnHeaderDivider],
+  ["newtab-fg", "kColorNewTabButtonForegroundFrameActive", (s) => s.kColorSysOnHeaderPrimary],
+  ["omnibox", "kColorLocationBarBackground", (s) => s.kColorSysOmniboxContainer],
+  ["omnibox-fg", "kColorOmniboxText", (s) => s.kColorSysOnSurface],
+  ["omnibox-dim", "kColorOmniboxTextDimmed", (s) => s.kColorSysOnSurfaceSubtle],
+  ["text-highlight", "kColorOmniboxSelectionBackground", (s) => s.kColorSysStateTextHighlight],
+  ["on-text-highlight", "kColorOmniboxSelectionForeground", (s) => s.kColorSysStateOnTextHighlight],
+  ["popup", "kColorOmniboxResultsBackground", (s) => s.kColorSysBase],
+  ["popup-fg", "kColorOmniboxResultsTextSelected", (s) => s.kColorSysOnSurface],
+  ["popup-hover", "kColorOmniboxResultsBackgroundHovered", (s, r) => PAINT(s.kColorSysStateHoverOnSubtle, r.popup)],
+  ["popup-icon", "kColorOmniboxResultsIcon", (s) => s.kColorSysOnSurfaceSubtle],
+  ["popup-url", "kColorOmniboxResultsUrl", (s) => s.kColorSysPrimary],
+  ["popup-dim", "kColorOmniboxResultsTextDimmed", (s) => s.kColorSysOnSurfaceSubtle],
+  ["bookmark-bg", "kColorBookmarkBarBackground", (s, r) => r.toolbar],
+  ["bookmark-fg", "kColorBookmarkBarForeground", (s) => s.kColorSysOnSurfaceSecondary],
+  ["ntp", "kColorNewTabPageBackground", (s) => s.kColorSysBase],
+  ["ntp-fg", "kColorNewTabPageText", (s) => s.kColorSysOnSurface],
+  ["ntp-logo", "kColorNewTabPageLogo", (s) => s.kColorSysPrimary],
+  ["ntp-search", "kColorNewTabPageSearchBoxBackground", (s) => s.kColorSysBaseContainer],
+  ["ntp-search-fg", "kColorNewTabPageSearchBoxText", (s) => s.kColorSysOnSurfaceSubtle],
+  ["ntp-tile", "kColorNewTabPageMostVisitedTileBackground", (s) => s.kColorSysTonalContainer],
+  ["on-ntp-tile", "kColorNewTabPageMostVisitedForeground", (s) => s.kColorSysOnTonalContainer],
+  ["ntp-tile-hover", "kColorNewTabPageMostVisitedTileBackgroundHovered", (s, r) => PAINT(s.kColorSysStateHoverOnSubtle, r.ntp)],
+  ["sidepanel", "kColorSidePanelContentBackground", (s) => s.kColorSysBaseContainer],
+  ["surface", "kColorPrimaryBackground", (s) => s.kColorSysSurface],
+  ["surface-fg", "kColorPrimaryForeground", (s) => s.kColorSysOnSurface],
+  ["surface-fg-subtle", "kColorSecondaryForeground", (s) => s.kColorSysOnSurfaceSubtle],
+  ["divider", "kColorSeparator", (s) => s.kColorSysDivider],
+  ["menu", "kColorMenuBackground", (s) => s.kColorSysSurface],
+  ["menu-fg", "kColorMenuItemForeground", (s) => s.kColorSysOnSurface],
+  ["menu-dim", "kColorMenuItemForegroundSecondary", (s) => s.kColorSysOnSurfaceSubtle],
+  ["menu-hover", "kColorMenuItemBackgroundSelected", (s, r) => PAINT(s.kColorSysStateHoverOnSubtle, r.menu)],
+  ["menu-sep", "kColorMenuSeparator", (s) => s.kColorSysDivider],
+  ["disabled", "kColorDisabledForeground", (s, r) => PAINT(s.kColorSysStateDisabled, r.menu)],
+  ["dialog", "kColorDialogBackground", (s) => s.kColorSysSurface],
+  ["dialog-title", "kColorDialogForeground", (s) => s.kColorSysOnSurface],
+  ["dialog-fg", "kColorLabelForegroundSecondary", (s) => s.kColorSysOnSurfaceSubtle],
+  ["primary", "kColorButtonBackgroundProminent", (s) => s.kColorSysPrimary],
+  ["on-primary", "kColorButtonForegroundProminent", (s) => s.kColorSysOnPrimary],
+  ["button-fg", "kColorButtonForeground", (s) => s.kColorSysPrimary],
+  ["button-border", "kColorButtonBorder", (s) => s.kColorSysTonalOutline],
+  ["tonal", "kColorButtonBackgroundTonal", (s) => s.kColorSysTonalContainer],
+  ["on-tonal", "kColorButtonForegroundTonal", (s) => s.kColorSysOnTonalContainer],
+  ["focus-ring", "kColorFocusableBorderFocused", (s) => s.kColorSysStateFocusRing],
+  ["field-border", "kColorTextfieldOutline", (s) => s.kColorSysNeutralOutline],
+  ["field-bg", "kColorTextfieldBackground", (s) => s.kColorSysSurface],
+  ["link", "kColorLinkForeground", (s) => s.kColorSysPrimary],
+  ["progress", "kColorProgressBar", (s) => s.kColorSysPrimary],
+  ["progress-bg", "kColorProgressBarBackground", (s) => s.kColorSysNeutralOutline],
+  ["toggle-track", "kColorToggleButtonTrackOn", (s) => s.kColorSysPrimary],
+  ["toggle-thumb", "kColorToggleButtonThumbOn", (s) => s.kColorSysOnPrimary],
+  ["toggle-track-off", "kColorToggleButtonTrackOff", (s) => s.kColorSysSurfaceVariant],
+  ["toggle-thumb-off", "kColorToggleButtonThumbOff", (s) => s.kColorSysOutline],
+  ["scrim", "kColorSysStateScrim", (s) => [153, 0, 0, 0]],
+];
+const MISSING = [255, 255, 0, 200]; // a token the map doesn't define: shown loud pink
+
+function regionsFor(palette, map) {
+  const ev = evaluateMap(map, palette);
+  const sys = new Proxy(ev.sys, { get: (t, k) => t[k] ?? (ev.errors.push(`map has no ${String(k)}`), MISSING) });
+  const r = {};
+  for (const [name, pin, recipe] of REGIONS) r[name] = ev.chrome[pin] ?? recipe(sys, r);
+  ev.errors = [...new Set(ev.errors)];
+  return { regions: r, ev };
+}
+
+const ICON = {
+  back: '<path d="M15 5l-7 7 7 7M8 12h12"/>',
+  fwd: '<path d="M9 5l7 7-7 7M16 12H4"/>',
+  reload: '<path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/>',
+  lock: '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  star: '<path d="M12 4l2.4 5 5.6.6-4.2 3.8 1.2 5.6L12 16.3 7 19l1.2-5.6L4 9.6 9.6 9z"/>',
+  puzzle: '<path d="M9 4h4v3a2 2 0 1 0 4 0V4h3v6h-3a2 2 0 1 0 0 4h3v6H4V4h5z"/>',
+  dots: '<circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  x: '<path d="M7 7l10 10M17 7L7 17"/>',
+  search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
+  clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+  side: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M14 5v14"/>',
+  min: '<path d="M6 12h12"/>', max: '<rect x="6" y="6" width="12" height="12" rx="1"/>',
+};
+const icon = (n) => `<svg class="i" viewBox="0 0 24 24">${ICON[n]}</svg>`;
+
+function windowHtml(p, overlays, inactive) {
+  const fav = (c) => `<span class="fav" style="background:${toCss(c)}"></span>`;
+  return `
+  <div class="win${inactive ? " inactive" : ""}">
+    <div class="tabs">
+      <div class="tab">${fav(p.red)}<span class="title">Omarchy — Manual</span><span class="x">${icon("x")}</span></div>
+      <div class="tab active">${fav(p.accent)}<span class="title">New Tab</span><span class="x">${icon("x")}</span></div>
+      <div class="tab hover">${fav(p.green)}<span class="title">Hyprland Wiki</span><span class="x">${icon("x")}</span></div>
+      <div class="tab">${fav(p.yellow)}<span class="title">chromium/src — Code Search</span><span class="x">${icon("x")}</span></div>
+      <div class="newtab">${icon("plus")}</div>
+      <div class="caption-btns">${icon("min")}${icon("max")}${icon("x")}</div>
+    </div>
+    <div class="toolbar">
+      <div class="ibtn">${icon("back")}</div><div class="ibtn dim">${icon("fwd")}</div>
+      <div class="ibtn hover">${icon("reload")}</div>
+      <div class="omnibox${overlays ? " focused" : ""}">${icon("search")}
+        <span>omarchy<span class="sel"> theme</span></span><span class="dim">— Search or type a URL</span>
+        <span class="star">${icon("star")}</span></div>
+      <div class="ibtn">${icon("puzzle")}</div><div class="ibtn">${icon("side")}</div>
+      <div class="avatar">M</div><div class="ibtn${overlays ? " hover" : ""}">${icon("dots")}</div>
+    </div>
+    <div class="bookmarks">
+      <span class="bm"><i style="background:${toCss(p.blue)}"></i>Omarchy</span>
+      <span class="bm hover"><i style="background:${toCss(p.magenta)}"></i>GitHub</span>
+      <span class="bm"><i style="background:${toCss(p.cyan)}"></i>Arch Wiki</span>
+      <span class="bm"><i style="background:${toCss(p.orange ?? p.yellow)}"></i>Hacker News</span>
+    </div>
+    <div class="body">
+      <div class="ntp">
+        <div class="logo">Omarchium</div>
+        <div class="ntp-search">${icon("search")}Search the web</div>
+        <div class="tiles">
+          ${["Omarchy", "GitHub", "Wiki", "Mail", "Music"].map((t, i) =>
+            `<div class="tile${i === 1 ? " hover" : ""}"><div class="disc">${t[0]}</div>${t}</div>`).join("")}
+        </div>
+      </div>
+      <aside class="sidepanel">
+        <div class="sp-head">Reading list <span>${icon("x")}</span></div>
+        <div class="card"><b>Theming Chromium</b><span class="sub">chromium.org · 6 min</span>
+          <a href="#">Open in new tab</a></div>
+        <div class="card"><span class="chip">Unread</span><b>Hyprland 0.52 released</b>
+          <span class="sub">Downloading update…</span><div class="progress"><div></div></div></div>
+      </aside>
+    </div>
+    ${overlays ? `
+    <div class="popup">
+      <div class="row">${'<span class="ic">' + icon("search") + "</span>"}omarchy theme <span class="dim">— Google Search</span></div>
+      <div class="row hover"><span class="ic">${icon("clock")}</span>omarchy theme set <span class="dim">—</span> <span class="url">omarchy.org/themes</span></div>
+      <div class="row"><span class="ic">${icon("search")}</span>omarchy theme gruvbox</div>
+      <div class="row"><span class="ic">${icon("star")}</span>Omarchy Manual <span class="dim">—</span> <span class="url">learn.omacom.io/2/the-omarchy-manual</span></div>
+    </div>
+    <div class="menu">
+      <div class="mi">New tab<span class="k">Ctrl+T</span></div>
+      <div class="mi hover">New window<span class="k">Ctrl+N</span></div>
+      <div class="mi">New Incognito window<span class="k">Ctrl+Shift+N</span></div>
+      <hr><div class="mi">History</div><div class="mi">Downloads<span class="k">Ctrl+J</span></div>
+      <div class="mi dis">Cast…</div>
+      <hr><div class="mi">Settings</div><div class="mi">Exit</div>
+    </div>
+    <div class="scrim"></div>
+    <div class="dialog">
+      <h3>Sync with Omarchy theme?</h3>
+      <p>Omarchium follows your Omarchy theme and updates live when you switch.</p>
+      <div class="field focus">~/.local/state/omarchy/current/theme</div>
+      <label class="ctl"><span class="toggle"></span>Follow Omarchy theme</label>
+      <label class="ctl"><span class="toggle off"></span>Use GTK theme</label>
+      <label class="ctl"><span class="check">✓</span>Apply to web pages (prefers-color-scheme)</label>
+      <div class="btns"><span class="btn outline">Learn more</span><span class="btn tonal">Later</span><span class="btn prominent">Turn on</span></div>
+    </div>` : ""}
+  </div>`;
+}
+
+// Stock radii of the mocked views (tabs: TabStyle; omnibox: 34px pill;
+// buttons: kFull pills; menus/dialogs: kMediumSmall; fields: kSmall...),
+// scaled exactly like views::LayoutProvider::FilterCornerRadius does. The
+// window itself is Hyprland's own corner.
+const STOCK_RADII = { tab: 10, omnibox: 17, btn32: 16, btn28: 14, btn24: 12, 8: 8, 12: 12, 16: 16 };
+function radiusVars(map, target) {
+  const vars = Object.entries(STOCK_RADII).map(([k, r]) => `--r-${k}:${scaleRadius(map, target, r)}px`);
+  vars.push(`--r-window:${target ?? 10}px`);
+  return vars.join(";");
+}
+// Mirrors OmarchyColorMap::Font: the views UI uses the Omarchy font; web
+// pages (the NTP is one) keep their own fonts.
+function uiFont(map, omarchyFont) {
+  const v = map.font?.ui ?? "omarchy";
+  if (v === "stock") return null;
+  return v === "omarchy" ? omarchyFont : v;
+}
+let currentUiFont = null;
+function styleVars(regions, map, target) {
+  const font = currentUiFont ? `;--ui-font:'${currentUiFont.replace(/['"]/g, "")}', system-ui, sans-serif` : "";
+  return Object.entries(regions).map(([k, c]) => `--c-${k}:${toCss(c)}`).join(";") + ";" + radiusVars(map, target) + font;
+}
+
+const $ = (id) => document.getElementById(id);
+const state = { data: null, map: null, theme: localStorageGet("theme") || "", view: "single",
+                overlays: true, inactive: false };
+function localStorageGet(k) { try { return localStorage.getItem("omarchium." + k); } catch { return null; } }
+function localStorageSet(k, v) { try { localStorage.setItem("omarchium." + k, v); } catch {} }
+
+function render() {
+  const { data } = state;
+  if (!data) return;
+  const errors = [];
+  let map;
+  try { map = JSON.parse(data.map); } catch (e) { errors.push(`color map: ${e.message}`); map = {}; }
+  const names = Object.keys(data.themes).sort();
+  const sel = $("theme");
+  const want = state.theme || "";
+  sel.innerHTML = `<option value="">Follow Omarchy (${data.current || "?"})</option>` +
+    names.map((n) => `<option value="${n}"${n === want ? " selected" : ""}>${n}</option>`).join("");
+  const active = want && data.themes[want] ? want : data.current;
+  const target = shapeTarget(map, data.hyprlandRounding);
+  currentUiFont = uiFont(map, data.omarchyFont);
+  const fromHypr = (map.shape?.address_bar_radius ?? "hyprland") === "hyprland";
+  $("meta").textContent = `map: ${data.mapPath} · radius: ${target == null ? "stock" : target + "px"}` +
+    `${fromHypr && target != null ? " (Hyprland)" : ""} · font: ${currentUiFont ?? "GTK default"} · live`;
+
+  const palette = parsePalette(data.themes[active] ?? "");
+  if (!palette) { errors.push(`theme ${active}: colors.toml has no background/foreground`); }
+
+  if (state.view === "single" && palette) {
+    const { regions, ev } = regionsFor(palette, map);
+    errors.push(...ev.errors);
+    $("single").innerHTML =
+      `<p class="caption"><b>${active}</b> · ${palette.dark ? "dark" : "light"}${active === data.current ? " · active Omarchy theme" : ""}</p>` +
+      `<div style="${styleVars(regions, map, target)}">${windowHtml(palette, state.overlays, state.inactive)}</div>`;
+    $("tokens").innerHTML = tokenTable(ev);
+  } else {
+    $("single").innerHTML = "";
+    $("tokens").innerHTML = "";
+  }
+
+  if (state.view === "gallery") {
+    $("gallery").innerHTML = names.map((n) => {
+      const p = parsePalette(data.themes[n]);
+      if (!p) return "";
+      const { regions, ev } = regionsFor(p, map);
+      if (ev.errors.length) errors.push(`${n}: ${ev.errors[0]}`);
+      return `<div class="cell${n === data.current ? " current" : ""}" data-theme="${n}">
+        <div class="scaler" style="${styleVars(regions, map, target)}">${windowHtml(p, state.overlays, false)}</div>
+        <div class="name"><b>${n}</b> · ${p.dark ? "dark" : "light"}${n === data.current ? " · active" : ""}</div></div>`;
+    }).join("");
+  }
+  $("errors").textContent = [...new Set(errors)].join("\n");
+}
+
+function tokenTable(ev) {
+  const rows = (title, obj) => Object.entries(obj).map(([k, c]) =>
+    `<tr><td>${title}</td><td>${k}</td><td><div class="sw"><i style="background:${toCss(c)}"></i></div></td><td>${toHex(c)}</td></tr>`).join("");
+  return `<table class="tokens"><tr><th></th><th>token</th><th></th><th>value</th></tr>
+    ${rows("var", ev.vars)}${rows("sys", ev.sys)}${rows("chrome", ev.chrome)}</table>`;
+}
+
+async function poll() {
+  try {
+    const data = await (await fetch("/api/data", { cache: "no-store" })).json();
+    if (!state.data || data.version !== state.data.version) { state.data = data; render(); }
+  } catch (e) { $("meta").textContent = "server not reachable — run scripts/preview"; }
+  setTimeout(poll, 1000);
+}
+
+$("theme").onchange = (e) => { state.theme = e.target.value; localStorageSet("theme", state.theme); render(); };
+const setView = (v) => {
+  state.view = v;
+  $("view-single").setAttribute("aria-pressed", v === "single");
+  $("view-gallery").setAttribute("aria-pressed", v === "gallery");
+  $("gallery").classList.toggle("hidden", v !== "gallery");
+  render();
+};
+$("view-single").onclick = () => setView("single");
+$("view-gallery").onclick = () => setView("gallery");
+$("toggle-overlays").onclick = (e) => { state.overlays = !state.overlays; e.target.setAttribute("aria-pressed", state.overlays); render(); };
+$("toggle-inactive").onclick = (e) => { state.inactive = !state.inactive; e.target.setAttribute("aria-pressed", state.inactive); render(); };
+$("gallery").onclick = (e) => {
+  const cell = e.target.closest(".cell");
+  if (cell) { state.theme = cell.dataset.theme; localStorageSet("theme", state.theme); setView("single"); }
+};
+poll();
+</script>
+</body>
+</html>

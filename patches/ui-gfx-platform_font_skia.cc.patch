@@ -1,0 +1,41 @@
+diff --git a/ui/gfx/platform_font_skia.cc b/ui/gfx/platform_font_skia.cc
+index 64f072febc5db29de74a6f5dc1fd43403eb6b04e..a3f802a81a0c3d07c357d833455faeabd8ba7d54 100644
+--- a/ui/gfx/platform_font_skia.cc
++++ b/ui/gfx/platform_font_skia.cc
+@@ -47,6 +47,12 @@ const char kFallbackFontFamilyName[] = "sans";
+ 
+ constexpr SkGlyphID kUnsupportedGlyph = 0;
+ 
++// Omarchium: see SetDefaultFontFamilyOverride().
++std::optional<std::string>& DefaultFontFamilyOverride() {
++  static base::NoDestructor<std::optional<std::string>> family;
++  return *family;
++}
++
+ // The default font, used for the default constructor.
+ scoped_refptr<PlatformFontSkia>& GetDefaultFont() {
+   static base::NoDestructor<scoped_refptr<PlatformFontSkia>> default_font;
+@@ -202,6 +208,10 @@ void PlatformFontSkia::EnsuresDefaultFontIsInitialized() {
+     params = gfx::GetFontRenderParams(FontRenderParamsQuery(), nullptr);
+   }
+ 
++  if (DefaultFontFamilyOverride()) {
++    family = *DefaultFontFamilyOverride();
++  }
++
+   bool success = false;
+   sk_sp<SkTypeface> typeface =
+       CreateSkTypeface(style & Font::ITALIC, weight, &family, &success);
+@@ -223,6 +233,12 @@ void PlatformFontSkia::EnsuresDefaultFontIsInitialized() {
+                                           size_pixels, style, weight, params);
+ }
+ 
++// static
++void PlatformFontSkia::SetDefaultFontFamilyOverride(
++    std::optional<std::string> family) {
++  DefaultFontFamilyOverride() = std::move(family);
++}
++
+ // static
+ void PlatformFontSkia::ReloadDefaultFont() {
+   // Reset the scoped_refptr.

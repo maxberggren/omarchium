@@ -1,0 +1,147 @@
+# Omarchium
+
+Chromium that follows your Omarchy desktop: theme colors, light/dark mode,
+window corner rounding and system font — live, as you switch.
+
+It's built the way Brave builds on Chromium: upstream Chromium stays
+untouched in `chromium/src`, our code lives in `core/` (linked into the tree
+as `//omarchium`), and the few upstream edits we need are kept as one small
+patch per file in `patches/`. Upgrading Chromium is one command.
+
+## What it does
+
+| Follows | Source | Live? |
+|---|---|---|
+| Colors | `~/.local/state/omarchy/current/theme/colors.toml` (written by `omarchy theme set`) | yes |
+| Light/dark (UI and web `prefers-color-scheme`) | `mode` in the same file | yes |
+| Corner radii | Hyprland's `decoration:rounding`, via its IPC socket (re-read on `configreloaded`) | yes¹ |
+| UI font | fontconfig `monospace` (set by `omarchy font set`) | yes¹ |
+
+¹ Already-open widgets that cache their shape or font pick it up on the next
+window or redraw; new windows are always right.
+
+How colors map onto Chromium is **data**, not code:
+[`core/resources/omarchy_color_map.json`](core/resources/omarchy_color_map.json).
+It sets Chromium's Material "system" tokens (`kColorSys*`), which nearly every
+color in the browser (views, menus, dialogs, WebUI pages) derives from. The
+same file defines the radius rule (the address bar gets Hyprland's rounding,
+everything else scales by the same factor) and the font choice.
+
+## Layout
+
+```
+omarchium.conf        pins: Chromium version + sha, Arch recipe tag, Crubit rev, Rust
+core/                 our code -> //omarchium in the Chromium tree
+  browser/theme/        palette parser, color-map evaluator, mixers, theme sync,
+                        Hyprland IPC, font resolution, tests
+  resources/            omarchy_color_map.json (the look)
+patches/              our upstream edits, one patch per file (Brave's convention)
+build-patches/        Arch Linux's distro-toolchain patches (snapshot, not ours)
+preview/              HTML look-and-feel preview, driven by the same color map
+launcher/             omarchium launcher + .desktop
+scripts/              everything below
+chromium/src          the Chromium tree, its own git repo (gitignored)
+```
+
+Inside `chromium/src` the history is:
+`upstream/<ver>` (pristine tarball) → `toolchain/<ver>` (Arch build patches,
+system tools, unbundled libs) → branch `omarchium` (our patches). Every past
+release stays in the `upstream` branch, which is what makes `git apply --3way`
+able to carry our patches forward.
+
+## Setup (once)
+
+Packages (Arch Linux ARM; on x86_64 the same names work):
+
+```bash
+sudo pacman -S --needed rustup rust-bindgen esbuild gn go gperf jre-openjdk-headless ninja nodejs typescript vulkan-headers simdutf clang lld compiler-rt
+```
+
+```bash
+rustup toolchain install 1.99.1 --profile minimal -c rust-src -c rustc-dev -c rustfmt -c llvm-tools
+```
+
+```bash
+scripts/init          # download, verify, import, prep toolchain, apply patches
+scripts/build         # first build: several hours; later ones: minutes
+scripts/install       # ~/.local/lib/omarchium + `omarchium` launcher + desktop entry
+```
+
+## Iterating on the look (no builds)
+
+```bash
+scripts/preview       # http://localhost:8787
+```
+
+The preview renders a mock of the browser (tab strip, toolbar, omnibox and
+dropdown, bookmarks, side panel, app menu, a dialog with controls) for the
+active Omarchy theme or any installed one ("All themes" shows them side by
+side), plus a table of every resolved token. It reloads live when you edit the
+color map, switch Omarchy themes, change Hyprland rounding, or change the font.
+
+To try changes in the **real browser** without rebuilding, copy the map to
+`~/.config/omarchium/color-map.json` and edit it there; Omarchium reloads it
+live. When you're happy, copy it back into `core/resources/` and commit.
+
+`scripts/check-preview` proves the preview and the browser agree: it evaluates
+every installed theme with the browser's C++ code and with the preview's JS
+and diffs the results.
+
+## Changing code
+
+- Our code: edit `core/`, then `scripts/build`. Tests:
+  `scripts/build omarchium_unittests && chromium/src/out/Release/omarchium_unittests`.
+- Upstream files: edit them in `chromium/src`, build, then
+  `scripts/export-patches` and commit `patches/`. Keep these edits as small
+  hooks that call into `core/`; that's what keeps upgrades painless.
+
+Current upstream hooks (≈100 lines over 10 files):
+
+| Patch | Why |
+|---|---|
+| `ui/color/color_mixers.{h,cc}` | run our mixer right after the sys-token mixer |
+| `chrome/browser/chrome_browser_main.cc`, `chrome/browser/BUILD.gn` | start the sync |
+| `ui/views/layout/layout_provider.{h,cc}` | one corner-radius filter for all shape tokens |
+| `chrome/browser/ui/tabs/tab_style.cc`, `chrome/browser/ui/layout_constants.cc` | the few radii that bypass shape tokens |
+| `ui/gfx/platform_font_skia.{h,cc}` | UI font family override |
+
+## Upgrading Chromium
+
+```bash
+scripts/upgrade latest          # or: scripts/upgrade 158.0.1234.56
+scripts/build
+scripts/check-preview
+scripts/install
+```
+
+`upgrade` downloads and verifies the release, snapshots Arch's recipe for it
+(`<version>-1`, which Arch usually publishes within days of a stable
+release), imports it on top of the previous one, redoes toolchain prep and
+re-applies `patches/` with a 3-way merge. If a patch conflicts, fix the
+markers in `chromium/src`, run `scripts/export-patches`, and build. It prints
+how Arch's `prepare()`/`build()` changed so you can mirror anything new in
+`scripts/prepare-toolchain` / `scripts/build`. Then commit `omarchium.conf`,
+`build-patches/` and `patches/`.
+
+If Arch moves to a newer Rust, bump `RUST_TOOLCHAIN` in `omarchium.conf` and
+install it with the `rustup` line above.
+
+## Runtime switches
+
+- `--disable-omarchy-theme` — stock Chromium look
+- `--omarchy-colors=<colors.toml>` — follow a different palette file
+- `--omarchium-color-map=<json>` — use a different color map
+
+The launcher uses its own profile (`~/.config/omarchium`) and reads flags from
+`~/.config/omarchium-flags.conf`, falling back to Omarchy's
+`~/.config/chromium-flags.conf`.
+
+## Notes for this machine (aarch64)
+
+- Arch's `compiler-rt-adjust-paths.patch` is skipped on aarch64
+  (`build-patches/series.skip`): Arch Linux ARM's compiler-rt keeps LLVM's
+  standard layout.
+- The bundled `mold` linker is an x86-64 binary, so builds use system `lld`
+  (`use_mold=false`).
+- Rust comes from rustup because Arch Linux ARM has no `rustc-dev` package,
+  which Crubit needs.

@@ -1,0 +1,36 @@
+#!/bin/bash
+# Install the build for the current user (no root):
+#   ~/.local/lib/omarchium/      the browser
+#   ~/.local/bin/omarchium       launcher
+#   ~/.local/share/applications/omarchium.desktop
+#
+# Omarchium uses its own profile (~/.config/omarchium) so it never touches
+# your Chromium profile. Flags come from ~/.config/omarchium-flags.conf, or
+# Omarchy's ~/.config/chromium-flags.conf if that doesn't exist.
+source "$(dirname "$0")/lib.sh"
+
+prefix=${PREFIX:-$HOME/.local}
+dest=$prefix/lib/omarchium
+[[ -x $OUT/chrome ]] || die "no build at $OUT (run scripts/build)"
+
+files=(chrome chrome_100_percent.pak chrome_200_percent.pak chrome_crashpad_handler
+  resources.pak v8_context_snapshot.bin icudtl.dat libEGL.so libGLESv2.so
+  libvk_swiftshader.so libvulkan.so.1 vk_swiftshader_icd.json libqt6_shim.so)
+
+log "installing to $dest"
+tmp=$dest.new
+rm -rf "$tmp"; mkdir -p "$tmp/locales"
+for f in "${files[@]}"; do
+  [[ -e $OUT/$f ]] && cp -a "$OUT/$f" "$tmp/"
+done
+cp -a "$OUT"/locales/*.pak "$tmp/locales/"
+rm -rf "$dest.old"; [[ -d $dest ]] && mv "$dest" "$dest.old"
+mv "$tmp" "$dest"; rm -rf "$dest.old"
+
+mkdir -p "$prefix/bin" "$prefix/share/applications" "$prefix/share/icons/hicolor/256x256/apps"
+install -m755 "$ROOT/launcher/omarchium" "$prefix/bin/omarchium"
+sed "s|@BIN@|$prefix/bin/omarchium|" "$ROOT/launcher/omarchium.desktop" \
+  >"$prefix/share/applications/omarchium.desktop"
+install -m644 "$SRC/chrome/app/theme/chromium/product_logo_256.png" \
+  "$prefix/share/icons/hicolor/256x256/apps/omarchium.png"
+log "done: run 'omarchium' (or pick Omarchium in the launcher)"

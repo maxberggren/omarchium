@@ -1,0 +1,26 @@
+#!/bin/bash
+# Proves the HTML preview renders what the browser paints: evaluates every
+# installed Omarchy theme with the browser's C++ code (omarchium_color_dump)
+# and with preview/colormap.js, and diffs the results.
+#   scripts/check-preview [<color-map.json>]
+source "$(dirname "$0")/lib.sh"
+
+dump=$OUT/omarchium_color_dump
+[[ -x $dump ]] || "$ROOT/scripts/build" omarchium_color_dump >/dev/null
+map=${1:-$ROOT/core/resources/omarchy_color_map.json}
+
+fail=0 n=0
+for toml in /usr/share/omarchy/themes/*/colors.toml "$HOME"/.config/omarchy/themes/*/colors.toml; do
+  [[ -f $toml ]] || continue
+  n=$((n + 1))
+  name=$(basename "$(dirname "$toml")")
+  cpp=$("$dump" "$toml" "$map" | python3 -c 'import json,sys; d=json.load(sys.stdin); d["errors"]=len(d["errors"]); print(json.dumps(d, sort_keys=True, indent=1))')
+  js=$(node "$ROOT/preview/dump.mjs" "$toml" "$map" | python3 -c 'import json,sys; d=json.load(sys.stdin); d["errors"]=len(d["errors"]); print(json.dumps(d, sort_keys=True, indent=1))')
+  if [[ $cpp != "$js" ]]; then
+    fail=$((fail + 1))
+    warn "$name: preview and browser disagree"
+    diff <(echo "$cpp") <(echo "$js") | head -20 >&2
+  fi
+done
+((fail == 0)) || die "$fail of $n themes differ"
+log "preview matches the browser on all $n themes"

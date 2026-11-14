@@ -1,0 +1,45 @@
+#!/bin/bash
+# Snapshot Arch Linux's chromium packaging patches into build-patches/.
+#
+#   scripts/sync-arch-recipe [<arch-commit-or-tag>]
+#
+# These patches make Chromium build with a distro toolchain (system clang,
+# rustup Rust, system node/java/gperf, unbundled libs). We don't own them;
+# Arch rebases them every Chromium release, which is what keeps our upgrades
+# cheap. Without an argument the commit pinned in omarchium.conf is used.
+source "$(dirname "$0")/lib.sh"
+
+commit=${1:-$ARCH_PKG_COMMIT}
+repo=$CACHE/arch-chromium
+dest=$ROOT/build-patches
+
+mkdir -p "$CACHE"
+if [[ ! -d $repo/.git ]]; then
+  git clone -q "$ARCH_PKG_REPO" "$repo"
+fi
+git -C "$repo" fetch -q --tags origin
+git -C "$repo" checkout -q "$commit"
+
+old_pkgbuild=$(mktemp)
+[[ -f $dest/PKGBUILD.arch ]] && cp "$dest/PKGBUILD.arch" "$old_pkgbuild"
+
+rm -f "$dest"/*.patch
+cp "$repo"/*.patch "$dest/"
+cp "$repo/PKGBUILD" "$dest/PKGBUILD.arch"
+
+# The order Arch applies them in, as written in its prepare().
+sed -n '/^prepare()/,/^}/p' "$repo/PKGBUILD" |
+  grep -oP 'patch -Np1 -i \.\./\K\S+' >"$dest/series"
+
+# Patches Arch ships but doesn't apply, if any, are left out of the series.
+for p in "$dest"/*.patch; do
+  grep -qx "${p##*/}" "$dest/series" || { rm "$p"; warn "unused upstream patch dropped: ${p##*/}"; }
+done
+
+log "build-patches/ now at Arch $(git -C "$repo" describe --tags --always) ($(wc -l <"$dest/series") patches)"
+
+if [[ -s $old_pkgbuild ]] && ! diff -q "$old_pkgbuild" "$dest/PKGBUILD.arch" >/dev/null; then
+  log "Arch's prepare()/build() changed; check whether scripts/prepare-toolchain or scripts/build need the same:"
+  diff -u <(sed -n '/^prepare()/,$p' "$old_pkgbuild") <(sed -n '/^prepare()/,$p' "$dest/PKGBUILD.arch") || true
+fi
+rm -f "$old_pkgbuild"

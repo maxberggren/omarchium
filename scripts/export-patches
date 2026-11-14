@@ -1,0 +1,24 @@
+#!/bin/bash
+# Write every change you've made to upstream Chromium files back into
+# patches/, one patch per file (Brave's layout). Our own code lives in core/
+# and is never part of a patch.
+#
+# Workflow: edit files in chromium/src, build, test, then run this and commit
+# the patches/ changes in the omarchium repo.
+source "$(dirname "$0")/lib.sh"
+
+base=toolchain/$CHROMIUM_VERSION
+cd "$SRC"
+# New upstream-side files show up in the diff only once git knows about them.
+mapfile -t new < <(cgit ls-files --others --exclude-standard -- . ':!omarchium' ':!out')
+((${#new[@]})) && cgit add -N -- "${new[@]}"
+
+mapfile -t files < <(cgit diff --name-only "$base" -- . ':!omarchium' ':!out')
+
+mkdir -p "$ROOT/patches"
+rm -f "$ROOT"/patches/*.patch
+for f in "${files[@]}"; do
+  cgit diff --full-index --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-color "$base" -- "$f" >"$ROOT/patches/$(patch_name_for "$f")"
+done
+log "exported ${#files[@]} patch(es) to patches/"
+git -C "$ROOT" status --short -- patches

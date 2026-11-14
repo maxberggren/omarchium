@@ -1,0 +1,18 @@
+#!/bin/bash
+# Build Crubit's cc_bindings_from_rs with our pinned rustc (it links against
+# rustc's private crates, so it must match the compiler exactly).
+source "$(dirname "$0")/lib.sh"
+
+dir=$CACHE/crubit
+[[ -d $dir/.git ]] || git clone -q --filter=blob:none "$CRUBIT_REPO" "$dir"
+git -C "$dir" fetch -q origin 2>/dev/null || true
+git -C "$dir" checkout -q "$CRUBIT_REV"
+
+sysroot=$(rustc --print sysroot)
+host=$(rustc --print host-tuple)
+cd "$dir"
+export CARGO_TARGET_DIR=target
+export RUSTFLAGS="-Clink-args=-Wl,-z,origin -Clink-args=-Wl,-rpath,$sysroot/lib -Clink-args=-Wl,-rpath,$sysroot/lib/rustlib/$host/lib"
+cargo fetch --locked --target "$host"
+cargo build --frozen --release -p cc_bindings_from_rs --bin cc_bindings_from_rs
+log "crubit: $dir/target/release/cc_bindings_from_rs"

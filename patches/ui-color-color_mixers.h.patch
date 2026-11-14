@@ -1,0 +1,25 @@
+diff --git a/ui/color/color_mixers.h b/ui/color/color_mixers.h
+index 83740c2fd0bffc77cb4f6b1057b9892fbf9c3cf0..070a15f60e38ca5d22cdbe619448b46b7b91b894 100644
+--- a/ui/color/color_mixers.h
++++ b/ui/color/color_mixers.h
+@@ -6,6 +6,7 @@
+ #define UI_COLOR_COLOR_MIXERS_H_
+ 
+ #include "base/component_export.h"
++#include "base/functional/callback.h"
+ #include "ui/color/color_provider_key.h"
+ 
+ namespace ui {
+@@ -16,6 +17,12 @@ class ColorProvider;
+ COMPONENT_EXPORT(COLOR)
+ void AddColorMixers(ColorProvider* provider, const ColorProviderKey& key);
+ 
++// Omarchium: lets the embedder add mixers right after the system-token mixer,
++// before anything derives colors from those tokens.
++using SysColorMixerHook =
++    base::RepeatingCallback<void(ColorProvider*, const ColorProviderKey&)>;
++COMPONENT_EXPORT(COLOR) void SetSysColorMixerHook(SysColorMixerHook hook);
++
+ }  // namespace ui
+ 
+ #endif  // UI_COLOR_COLOR_MIXERS_H_

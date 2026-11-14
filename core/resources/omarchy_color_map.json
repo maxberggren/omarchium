@@ -1,0 +1,150 @@
+{
+  "//": [
+    "How Omarchy theme colors become Chromium colors. This file is the single",
+    "source of truth: it is compiled into the browser as the default, drives",
+    "the HTML preview (scripts/preview), and can be overridden without a",
+    "rebuild by copying it to ~/.config/omarchium/color-map.json (the browser",
+    "reloads it live, like colors.toml).",
+    "",
+    "Values are expressions over the palette in colors.toml:",
+    "  roles     background dark_background darker_background lighter_background",
+    "            foreground dark_foreground light_foreground accent selection",
+    "            muted red yellow green cyan blue magenta black white",
+    "  literals  \"#rrggbb\"",
+    "  mix(a, b, w)    blend, w = weight of a (0..1)",
+    "  alpha(c, a)     c with opacity a (0..1)",
+    "  contrast(c)     foreground or background, whichever reads best on c",
+    "  dark(a, b)      a in dark themes, b in light ones",
+    "  and any name defined earlier in \"vars\".",
+    "",
+    "\"sys\" replaces Chromium's Material system tokens (ui/color/color_id.h,",
+    "kColorSys*); nearly every color in the browser is derived from them, so",
+    "this is where most of the look is decided. \"chrome\" pins individual",
+    "browser colors (chrome/browser/ui/color/chrome_color_id.h) after all of",
+    "Chromium's own mixers ran, for the rare case a derived color is wrong."
+  ],
+
+  "shape": {
+    "//": [
+      "Corner radii. The address bar is the reference: it gets",
+      "address_bar_radius, and every other radius in the UI (tabs, buttons,",
+      "menus, dialogs, chips, ...) is scaled by the same factor, so shapes",
+      "keep their proportions and anything as round as the address bar ends",
+      "up exactly as round. \"hyprland\" follows Hyprland's live",
+      "decoration:rounding (the window corners); a number is px; \"stock\"",
+      "keeps Chromium's radii. stock_address_bar_radius is upstream's (a",
+      "34px-tall pill, see kLocationBarHeight in layout_constants.cc)."
+    ],
+    "address_bar_radius": "hyprland",
+    "stock_address_bar_radius": 17
+  },
+
+  "font": {
+    "//": "Browser UI font family. \"omarchy\" follows the Omarchy system font (fontconfig's monospace, set by `omarchy font set`); \"stock\" keeps the GTK font; anything else is a family name. Size and weight still come from GTK. Web pages keep their own fonts.",
+    "ui": "omarchy"
+  },
+
+  "vars": {
+    "raised": "dark(lighter_background, dark_background)",
+    "on_accent": "contrast(accent)",
+    "secondary": "mix(accent, light_foreground, 0.55)"
+  },
+
+  "sys": {
+    "kColorSysPrimary": "accent",
+    "kColorSysOnPrimary": "on_accent",
+    "kColorSysPrimaryContainer": "mix(accent, background, 0.30)",
+    "kColorSysOnPrimaryContainer": "foreground",
+    "kColorSysInversePrimary": "mix(accent, foreground, 0.65)",
+
+    "kColorSysSecondary": "secondary",
+    "kColorSysOnSecondary": "contrast(secondary)",
+    "kColorSysSecondaryContainer": "selection",
+    "kColorSysOnSecondaryContainer": "foreground",
+
+    "kColorSysTertiary": "magenta",
+    "kColorSysOnTertiary": "contrast(magenta)",
+    "kColorSysTertiaryContainer": "mix(magenta, background, 0.30)",
+    "kColorSysOnTertiaryContainer": "foreground",
+
+    "kColorSysError": "red",
+    "kColorSysOnError": "contrast(red)",
+    "kColorSysErrorContainer": "mix(red, background, 0.30)",
+    "kColorSysOnErrorContainer": "foreground",
+
+    "kColorSysSurface": "background",
+    "kColorSysSurface1": "mix(raised, background, 0.20)",
+    "kColorSysSurface2": "mix(raised, background, 0.40)",
+    "kColorSysSurface3": "mix(raised, background, 0.60)",
+    "kColorSysSurface4": "mix(raised, background, 0.80)",
+    "kColorSysSurface5": "raised",
+    "kColorSysSurfaceNumberedForeground": "accent",
+    "kColorSysSurfaceContainerLowest": "dark(darker_background, background)",
+    "kColorSysSurfaceContainerLow": "mix(raised, background, 0.25)",
+    "kColorSysSurfaceContainer": "mix(raised, background, 0.50)",
+    "kColorSysSurfaceContainerHigh": "raised",
+    "kColorSysSurfaceContainerHighest": "mix(foreground, raised, 0.06)",
+    "kColorSysSurfaceVariant": "selection",
+    "kColorSysSurfaceSection": "mix(raised, background, 0.30)",
+    "kColorSysInverseSurface": "foreground",
+    "kColorSysInverseOnSurface": "background",
+    "kColorSysInverseSurfacePrimary": "mix(accent, foreground, 0.15)",
+
+    "kColorSysOnSurface": "foreground",
+    "kColorSysOnSurfaceVariant": "light_foreground",
+    "kColorSysOnSurfaceSecondary": "light_foreground",
+    "kColorSysOnSurfaceSubtle": "dark_foreground",
+    "kColorSysOnSurfacePrimary": "foreground",
+    "kColorSysOnSurfacePrimaryInactive": "light_foreground",
+
+    "kColorSysTonalContainer": "selection",
+    "kColorSysOnTonalContainer": "foreground",
+    "kColorSysBaseTonalContainer": "mix(accent, background, 0.15)",
+    "kColorSysOnBaseTonalContainer": "foreground",
+    "kColorSysNeutralContainer": "raised",
+    "kColorSysOutline": "muted",
+    "kColorSysTonalOutline": "mix(accent, muted, 0.40)",
+    "kColorSysNeutralOutline": "muted",
+    "kColorSysDivider": "selection",
+
+    "kColorSysHeader": "dark_background",
+    "kColorSysHeaderInactive": "darker_background",
+    "kColorSysHeaderContainer": "raised",
+    "kColorSysHeaderContainerInactive": "mix(raised, darker_background, 0.5)",
+    "kColorSysOnHeaderDivider": "selection",
+    "kColorSysOnHeaderDividerInactive": "mix(selection, darker_background, 0.5)",
+    "kColorSysOnHeaderPrimary": "light_foreground",
+    "kColorSysOnHeaderPrimaryInactive": "dark_foreground",
+    "kColorSysBase": "background",
+    "kColorSysBaseContainer": "raised",
+    "kColorSysBaseContainerElevated": "raised",
+    "kColorSysBaseContainerOnSurface": "raised",
+    "kColorSysOmniboxContainer": "raised",
+
+    "kColorSysStateHover": "alpha(foreground, 0.08)",
+    "kColorSysStateFocus": "alpha(foreground, 0.12)",
+    "kColorSysStatePressed": "alpha(foreground, 0.12)",
+    "kColorSysStateHoverOnProminent": "alpha(on_accent, 0.08)",
+    "kColorSysStateHoverOnSubtle": "alpha(foreground, 0.10)",
+    "kColorSysStateRippleNeutralOnProminent": "alpha(on_accent, 0.16)",
+    "kColorSysStateRippleNeutralOnSubtle": "alpha(foreground, 0.12)",
+    "kColorSysStateRipplePrimary": "alpha(accent, 0.32)",
+    "kColorSysStateFocusRing": "accent",
+    "kColorSysStateFocusRingInverse": "mix(accent, background, 0.6)",
+    "kColorSysStateFocusHighlight": "alpha(accent, 0.24)",
+    "kColorSysStateTextHighlight": "selection",
+    "kColorSysStateOnTextHighlight": "foreground",
+    "kColorSysStateDisabled": "alpha(foreground, 0.38)",
+    "kColorSysStateDisabledContainer": "alpha(foreground, 0.12)",
+    "kColorSysStateHeaderHover": "mix(foreground, dark_background, 0.10)",
+    "kColorSysStateHeaderHoverInactive": "alpha(foreground, 0.10)",
+    "kColorSysStateOnHeaderHover": "foreground",
+    "kColorSysStateHeaderSelect": "alpha(background, 0.60)",
+
+    "kColorSysGradientPrimary": "mix(accent, background, 0.30)",
+    "kColorSysGradientTertiary": "mix(magenta, background, 0.30)"
+  },
+
+  "chrome": {
+  }
+}
