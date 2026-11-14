@@ -38,6 +38,18 @@ link /usr/bin/java third_party/jdk/current/bin/java
 link "$rust_sysroot/bin/rustc" third_party/rust-toolchain/bin/rustc
 rm -f third_party/gperf/cipd/bin/gperf
 link /usr/bin/gperf third_party/gperf/cipd/bin/gperf
+# Prebuilt x86-64 tools the build runs; use the host's own instead (on an
+# x86-64 host this is harmless). Found with:
+#   find . -type f -perm -u+x | xargs file | grep x86-64
+for pair in \
+  buildtools/linux64/gn:/usr/bin/gn \
+  third_party/ninja/ninja:/usr/bin/ninja \
+  third_party/devtools-frontend/src/third_party/esbuild/esbuild:/usr/bin/esbuild \
+  third_party/cpython3/linux-amd64/bin/python3:/usr/bin/python3 \
+  third_party/cpython3/host/bin/python3:/usr/bin/python3; do
+  f=${pair%%:*}
+  [[ -e $f || -L $f ]] && { rm -f "$f"; ln -s "${pair#*:}" "$f"; }
+done
 rm -rf third_party/devtools-frontend/src/node_modules/esbuild
 link /usr/lib/node_modules/esbuild third_party/devtools-frontend/src/node_modules/esbuild
 

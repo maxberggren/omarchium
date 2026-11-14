@@ -143,5 +143,8 @@ The launcher uses its own profile (`~/.config/omarchium`) and reads flags from
   standard layout.
 - The bundled `mold` linker is an x86-64 binary, so builds use system `lld`
   (`use_mold=false`).
+- Other prebuilt x86-64 tools the build runs (`gn`, `ninja`, the hermetic
+  `python3`, devtools' `esbuild`) are swapped for system ones in
+  `scripts/prepare-toolchain`.
 - Rust comes from rustup because Arch Linux ARM has no `rustc-dev` package,
   which Crubit needs.
