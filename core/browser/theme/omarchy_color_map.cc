@@ -341,6 +341,27 @@ int OmarchyColorMap::Shape::Scale(int radius, int target) const {
                                       stock_address_bar_radius));
 }
 
+// static
+OmarchyColorMap::Resolved OmarchyColorMap::Interpolate(const Resolved& from,
+                                                       const Resolved& to,
+                                                       float t) {
+  auto blend = [t](const std::vector<ResolvedColor>& a,
+                   const std::vector<ResolvedColor>& b) {
+    base::flat_map<ui::ColorId, SkColor> old;
+    for (const auto& c : a) {
+      old[c.id] = c.color;
+    }
+    std::vector<ResolvedColor> out = b;
+    for (auto& c : out) {
+      if (auto it = old.find(c.id); it != old.end()) {
+        c.color = color_utils::AlphaBlend(c.color, it->second, t);
+      }
+    }
+    return out;
+  };
+  return {blend(from.sys, to.sys), blend(from.chrome, to.chrome)};
+}
+
 OmarchyColorMap::OmarchyColorMap() = default;
 OmarchyColorMap::~OmarchyColorMap() = default;
 
@@ -401,6 +422,15 @@ std::unique_ptr<OmarchyColorMap> OmarchyColorMap::Parse(
     std::optional<int> stock = shape->FindInt("stock_address_bar_radius");
     if (stock && *stock > 0) {
       map->shape_.stock_address_bar_radius = *stock;
+    }
+  }
+
+  if (const base::DictValue* transition = root->FindDict("transition")) {
+    std::optional<int> ms = transition->FindInt("duration_ms");
+    if (ms && *ms >= 0 && *ms <= 5000) {
+      map->transition_.duration_ms = *ms;
+    } else if (transition->Find("duration_ms")) {
+      errors->push_back("transition.duration_ms: expected 0..5000");
     }
   }
 

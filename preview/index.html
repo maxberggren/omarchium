@@ -145,6 +145,10 @@
         background-size: 8px 8px; background-position: 0 0, 4px 4px; position: relative; }
   .sw > i { position: absolute; inset: 0; border-radius: 2px; }
   .hidden { display: none !important; }
+  /* Theme switches crossfade, like the browser (map: transition.duration_ms). */
+  .win, .win * { transition: background-color var(--fade, 0ms) ease-in-out,
+                 color var(--fade, 0ms) ease-in-out, border-color var(--fade, 0ms) ease-in-out,
+                 box-shadow var(--fade, 0ms) ease-in-out; }
   @media (max-width: 700px) { .win { font-size: 11px; } .sidepanel, .tiles, .menu { display: none; } }
 </style>
 </head>
@@ -268,14 +272,14 @@ const ICON = {
 const icon = (n) => `<svg class="i" viewBox="0 0 24 24">${ICON[n]}</svg>`;
 
 function windowHtml(p, overlays, inactive) {
-  const fav = (c) => `<span class="fav" style="background:${toCss(c)}"></span>`;
+  const fav = (role) => `<span class="fav" style="background:var(--p-${role})"></span>`;
   return `
   <div class="win${inactive ? " inactive" : ""}">
     <div class="tabs">
-      <div class="tab">${fav(p.red)}<span class="title">Omarchy — Manual</span><span class="x">${icon("x")}</span></div>
-      <div class="tab active">${fav(p.accent)}<span class="title">New Tab</span><span class="x">${icon("x")}</span></div>
-      <div class="tab hover">${fav(p.green)}<span class="title">Hyprland Wiki</span><span class="x">${icon("x")}</span></div>
-      <div class="tab">${fav(p.yellow)}<span class="title">chromium/src — Code Search</span><span class="x">${icon("x")}</span></div>
+      <div class="tab">${fav("red")}<span class="title">Omarchy — Manual</span><span class="x">${icon("x")}</span></div>
+      <div class="tab active">${fav("accent")}<span class="title">New Tab</span><span class="x">${icon("x")}</span></div>
+      <div class="tab hover">${fav("green")}<span class="title">Hyprland Wiki</span><span class="x">${icon("x")}</span></div>
+      <div class="tab">${fav("yellow")}<span class="title">chromium/src — Code Search</span><span class="x">${icon("x")}</span></div>
       <div class="newtab">${icon("plus")}</div>
       <div class="caption-btns">${icon("min")}${icon("max")}${icon("x")}</div>
     </div>
@@ -289,10 +293,10 @@ function windowHtml(p, overlays, inactive) {
       <div class="avatar">M</div><div class="ibtn${overlays ? " hover" : ""}">${icon("dots")}</div>
     </div>
     <div class="bookmarks">
-      <span class="bm"><i style="background:${toCss(p.blue)}"></i>Omarchy</span>
-      <span class="bm hover"><i style="background:${toCss(p.magenta)}"></i>GitHub</span>
-      <span class="bm"><i style="background:${toCss(p.cyan)}"></i>Arch Wiki</span>
-      <span class="bm"><i style="background:${toCss(p.orange ?? p.yellow)}"></i>Hacker News</span>
+      <span class="bm"><i style="background:var(--p-blue)"></i>Omarchy</span>
+      <span class="bm hover"><i style="background:var(--p-magenta)"></i>GitHub</span>
+      <span class="bm"><i style="background:var(--p-cyan)"></i>Arch Wiki</span>
+      <span class="bm"><i style="background:var(--p-yellow)"></i>Hacker News</span>
     </div>
     <div class="body">
       <div class="ntp">
@@ -357,9 +361,12 @@ function uiFont(map, omarchyFont) {
   return v === "omarchy" ? omarchyFont : v;
 }
 let currentUiFont = null;
-function styleVars(regions, map, target) {
+function styleVars(regions, map, target, palette) {
+  const pal = palette ? ";" + ["red", "yellow", "green", "cyan", "blue", "magenta", "accent"]
+    .map((r) => `--p-${r}:${toCss(palette[r])}`).join(";") : "";
+  const fade = `;--fade:${Math.max(0, map.transition?.duration_ms ?? 300)}ms`;
   const font = currentUiFont ? `;--ui-font:'${currentUiFont.replace(/['"]/g, "")}', system-ui, sans-serif` : "";
-  return Object.entries(regions).map(([k, c]) => `--c-${k}:${toCss(c)}`).join(";") + ";" + radiusVars(map, target) + font;
+  return Object.entries(regions).map(([k, c]) => `--c-${k}:${toCss(c)}`).join(";") + ";" + radiusVars(map, target) + font + pal + fade;
 }
 
 const $ = (id) => document.getElementById(id);
@@ -392,12 +399,21 @@ function render() {
   if (state.view === "single" && palette) {
     const { regions, ev } = regionsFor(palette, map);
     errors.push(...ev.errors);
-    $("single").innerHTML =
-      `<p class="caption"><b>${active}</b> · ${palette.dark ? "dark" : "light"}${active === data.current ? " · active Omarchy theme" : ""}</p>` +
-      `<div style="${styleVars(regions, map, target)}">${windowHtml(palette, state.overlays, state.inactive)}</div>`;
+    // Keep the DOM and only swap the variables, so colors can crossfade.
+    const shape = `${state.overlays}/${state.inactive}`;
+    const caption = `<b>${active}</b> · ${palette.dark ? "dark" : "light"}${active === data.current ? " · active Omarchy theme" : ""}`;
+    const vars = styleVars(regions, map, target, palette);
+    const host = $("single");
+    if (host.dataset.shape !== shape || !host.querySelector(".stage")) {
+      host.innerHTML = `<p class="caption"></p><div class="stage">${windowHtml(palette, state.overlays, state.inactive)}</div>`;
+      host.dataset.shape = shape;
+    }
+    host.querySelector(".caption").innerHTML = caption;
+    host.querySelector(".stage").setAttribute("style", vars);
     $("tokens").innerHTML = tokenTable(ev);
   } else {
     $("single").innerHTML = "";
+    $("single").dataset.shape = "";
     $("tokens").innerHTML = "";
   }
 
@@ -408,7 +424,7 @@ function render() {
       const { regions, ev } = regionsFor(p, map);
       if (ev.errors.length) errors.push(`${n}: ${ev.errors[0]}`);
       return `<div class="cell${n === data.current ? " current" : ""}" data-theme="${n}">
-        <div class="scaler" style="${styleVars(regions, map, target)}">${windowHtml(p, state.overlays, false)}</div>
+        <div class="scaler" style="${styleVars(regions, map, target, p)}">${windowHtml(p, state.overlays, false)}</div>
         <div class="name"><b>${n}</b> · ${p.dark ? "dark" : "light"}${n === data.current ? " · active" : ""}</div></div>`;
     }).join("");
   }

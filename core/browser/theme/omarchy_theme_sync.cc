@@ -3,6 +3,8 @@
 
 #include "omarchium/browser/theme/omarchy_theme_sync.h"
 
+#include <algorithm>
+#include <cmath>
 #include <utility>
 
 #include "base/command_line.h"
@@ -19,6 +21,7 @@
 #include "omarchium/browser/theme/hyprland_ipc.h"
 #include "omarchium/browser/theme/omarchy_color_mixer.h"
 #include "omarchium/browser/theme/omarchy_font.h"
+#include "omarchium/browser/theme/omarchy_theme_sync_state.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/color/color_mixers.h"
 #include "ui/color/color_provider_manager.h"
@@ -138,6 +141,9 @@ OmarchyThemeSync::OmarchyThemeSync(base::FilePath colors_path,
   // instead of flashing Chromium's. Two tiny files; the UI thread may still
   // block here (BrowserMainLoop disallows it only once the main loop runs).
   Apply(ReadFiles(colors_path_, user_map_path_));
+  // Profiles (and their ThemeService) are created after this, so they see
+  // the flag before deciding whether to build Omarchy's policy theme.
+  SetOmarchyThemeSyncActive(palette_.has_value());
 
   ui::SetSysColorMixerHook(base::BindRepeating(
       [](ui::ColorProvider* provider, const ui::ColorProviderKey& key) {
@@ -251,24 +257,74 @@ void OmarchyThemeSync::Apply(Files files) {
   last_files_ = std::move(files);
   map_ = std::move(map);
   palette_ = std::move(palette);
-  colors_ = {};
-  if (palette_) {
-    errors.clear();
-    colors_ = map_->Evaluate(*palette_, &errors);
-    for (const std::string& e : errors) {
-      LOG(WARNING) << "omarchium: color map: " << e;
-    }
+  transition_timer_.Stop();
+
+  if (!palette_) {
+    shown_ = target_ = {};
+    has_shown_ = false;
+    SetColorScheme(std::nullopt);
+    Refresh();
+    return;
   }
 
+  errors.clear();
+  target_ = map_->Evaluate(*palette_, &errors);
+  target_dark_ = palette_->dark;
+  for (const std::string& e : errors) {
+    LOG(WARNING) << "omarchium: color map: " << e;
+  }
+
+  transition_duration_ = base::Milliseconds(map_->transition().duration_ms);
+  if (!has_shown_ || transition_duration_.is_zero()) {
+    shown_ = target_;
+    shown_dark_ = target_dark_;
+    has_shown_ = true;
+    SetColorScheme(shown_dark_);
+    Refresh();
+    return;
+  }
+
+  // Crossfade from whatever is on screen now (possibly mid-fade).
+  transition_from_ = shown_;
+  transition_start_ = base::TimeTicks::Now();
+  transition_timer_.Start(FROM_HERE, base::Milliseconds(16), this,
+                          &OmarchyThemeSync::OnTransitionTick);
+  OnTransitionTick();
+}
+
+void OmarchyThemeSync::OnTransitionTick() {
+  const float t = std::clamp(
+      static_cast<float>((base::TimeTicks::Now() - transition_start_) /
+                         transition_duration_),
+      0.0f, 1.0f);
+  if (t >= 1.0f) {
+    transition_timer_.Stop();
+    shown_ = target_;
+    if (shown_dark_ != target_dark_) {
+      // Light/dark (and with it web prefers-color-scheme) flips once the
+      // colors have arrived, so nothing falls back to stock mid-fade.
+      shown_dark_ = target_dark_;
+      SetColorScheme(shown_dark_);
+    }
+  } else {
+    // Ease in-out (cubic).
+    const float e = t < 0.5f ? 4 * t * t * t
+                             : 1 - std::pow(-2 * t + 2, 3.0f) / 2;
+    shown_ = OmarchyColorMap::Interpolate(transition_from_, target_, e);
+  }
+  Refresh();
+}
+
+void OmarchyThemeSync::SetColorScheme(std::optional<bool> dark) {
   // Light/dark follows the theme for the whole app, web content included
   // (prefers-color-scheme), unless the user picked one in settings.
-  ui::NativeTheme::SetPreferredColorSchemeOverride(
-      palette_ ? std::make_optional(
-                     palette_->dark
-                         ? ui::NativeTheme::PreferredColorScheme::kDark
-                         : ui::NativeTheme::PreferredColorScheme::kLight)
-               : std::nullopt);
+  ui::NativeTheme::SetPreferredColorSchemeOverride(dark.transform([](bool d) {
+    return d ? ui::NativeTheme::PreferredColorScheme::kDark
+             : ui::NativeTheme::PreferredColorScheme::kLight;
+  }));
+}
 
+void OmarchyThemeSync::Refresh() {
   // New colors under the same keys: bump the version so every provider is
   // rebuilt, then tell every widget and web contents to repaint.
   ui::NativeTheme* native = ui::NativeTheme::GetInstanceForNativeUi();
@@ -282,8 +338,9 @@ void OmarchyThemeSync::Apply(Files files) {
 
 void OmarchyThemeSync::AddSysMixers(ui::ColorProvider* provider,
                                     const ui::ColorProviderKey& key) const {
-  if (palette_) {
-    AddOmarchySysColorMixers(provider, key, *palette_, colors_);
+  if (has_shown_) {
+    AddOmarchySysColorMixers(provider, key, shown_dark_, palette_->accent,
+                             shown_);
   }
 }
 
@@ -294,8 +351,8 @@ int OmarchyThemeSync::FilterCornerRadius(int radius) const {
 
 void OmarchyThemeSync::AddChromeMixer(ui::ColorProvider* provider,
                                       const ui::ColorProviderKey& key) const {
-  if (palette_) {
-    AddOmarchyChromeColorMixer(provider, key, *palette_, colors_);
+  if (has_shown_) {
+    AddOmarchyChromeColorMixer(provider, key, shown_dark_, shown_);
   }
 }
 

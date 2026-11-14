@@ -11,15 +11,21 @@ const rgb = (r, g, b) => [255, r, g, b];
 const BLACK = rgb(0, 0, 0), WHITE = rgb(255, 255, 255);
 const clampRound = (v) => Math.min(255, Math.max(0, Math.round(v)));
 
-// color_utils::AlphaBlend(foreground, background, float alpha)
-export function mix(fg, bg, alpha) {
+// color_utils::AlphaBlend(foreground, background, float alpha), in 32-bit
+// float arithmetic like the C++ (Math.fround after every operation), so
+// results match bit for bit.
+const f = Math.fround;
+export function mix(fg, bg, alphaIn) {
+  const alpha = f(alphaIn);
   if (alpha === 0) return bg;
   if (alpha === 1) return fg;
-  const norm = fg[0] * alpha + bg[0] * (1 - alpha);
+  const inv = f(1 - alpha);
+  const fa = f(fg[0] * alpha), ba = f(bg[0] * inv);
+  const norm = f(fa + ba);
   if (norm === 0) return [0, 0, 0, 0];
-  const fw = (fg[0] * alpha) / norm, bw = (bg[0] * (1 - alpha)) / norm;
-  return [clampRound(norm), clampRound(fg[1] * fw + bg[1] * bw),
-          clampRound(fg[2] * fw + bg[2] * bw), clampRound(fg[3] * fw + bg[3] * bw)];
+  const fw = f(fa / norm), bw = f(ba / norm);
+  const ch = (i) => clampRound(f(f(fg[i] * fw) + f(bg[i] * bw)));
+  return [clampRound(norm), ch(1), ch(2), ch(3)];
 }
 
 const linearize = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
@@ -170,7 +176,7 @@ export function evalExpr(node, palette, vars) {
       const a = node.args;
       switch (node.fn) {
         case "mix": return mix(color(a[0]), color(a[1]), num(a[2]));
-        case "alpha": { const c = color(a[0]); return [clampRound(num(a[1]) * 255), c[1], c[2], c[3]]; }
+        case "alpha": { const c = color(a[0]); return [clampRound(f(f(num(a[1])) * 255)), c[1], c[2], c[3]]; }
         case "contrast": {
           const c = color(a[0]);
           return contrastRatio(c, palette.foreground) >= contrastRatio(c, palette.background)

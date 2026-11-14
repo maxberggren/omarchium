@@ -1,0 +1,23 @@
+diff --git a/chrome/browser/themes/theme_service.cc b/chrome/browser/themes/theme_service.cc
+index 404b10a09f126775ee15d4a3c9b6cade5b4bb5dc..1740b11ea19c7e63992b175ea5f4f6729d06516c 100644
+--- a/chrome/browser/themes/theme_service.cc
++++ b/chrome/browser/themes/theme_service.cc
+@@ -94,6 +94,7 @@
+ 
+ #if BUILDFLAG(IS_LINUX)
+ #include "base/time/time.h"
++#include "omarchium/browser/theme/omarchy_theme_sync_state.h"
+ #include "ui/linux/linux_ui.h"
+ #include "ui/linux/linux_ui_factory.h"
+ #include "ui/ozone/public/ozone_platform.h"  // nogncheck
+@@ -565,6 +566,10 @@ std::string ThemeService::GetThemeID() const {
+ }
+ 
+ bool ThemeService::UsingPolicyTheme() const {
++  // Omarchium: the Omarchy theme sync supersedes Omarchy's color policy.
++  if (omarchium::IsOmarchyThemeSyncActive()) {
++    return false;
++  }
+   return profile_->GetPrefs()->IsManagedPreference(themes::kPolicyThemeColor);
+ }
+ 

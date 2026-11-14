@@ -13,26 +13,26 @@ struct ColorProviderKey;
 
 namespace omarchium {
 
-struct OmarchyPalette;
-
 // Whether `palette` should restyle a provider for `key`. Not for forced
 // colors / high contrast (accessibility wins), nor when the window asks for
 // the opposite light/dark mode (the user picked one in chrome://settings).
-bool ShouldApplyOmarchyPalette(const ui::ColorProviderKey& key,
-                               const OmarchyPalette& palette);
+bool ShouldApplyOmarchyPalette(const ui::ColorProviderKey& key, bool dark);
 
 // Runs directly after ui::AddSysColorMixer(): reseeds the Material reference
 // palette from the Omarchy accent, then sets every "sys" token from the color
 // map, so ui/, components/ and chrome/ mixers all derive from Omarchy colors.
+// `dark` is the mode these colors are for; `accent` seeds the reference
+// palette.
 void AddOmarchySysColorMixers(ui::ColorProvider* provider,
                               const ui::ColorProviderKey& key,
-                              const OmarchyPalette& palette,
+                              bool dark,
+                              SkColor accent,
                               const OmarchyColorMap::Resolved& colors);
 
 // Runs after all of Chrome's mixers: applies the map's "chrome" pins.
 void AddOmarchyChromeColorMixer(ui::ColorProvider* provider,
                                 const ui::ColorProviderKey& key,
-                                const OmarchyPalette& palette,
+                                bool dark,
                                 const OmarchyColorMap::Resolved& colors);
 
 }  // namespace omarchium

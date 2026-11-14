@@ -99,5 +99,30 @@ TEST(OmarchyColorMapTest, ShapeScalesRelativeToAddressBar) {
   EXPECT_EQ(shape.Scale(0, 6), 0);
 }
 
+TEST(OmarchyColorMapTest, InterpolateBlendsTokenByToken) {
+  OmarchyColorMap::Resolved from{{{ui::kColorSysPrimary, "p", SK_ColorBLACK}},
+                                 {}};
+  OmarchyColorMap::Resolved to{{{ui::kColorSysPrimary, "p", SK_ColorWHITE},
+                                {ui::kColorSysSecondary, "s", SK_ColorRED}},
+                               {}};
+  auto half = OmarchyColorMap::Interpolate(from, to, 0.5f);
+  ASSERT_EQ(half.sys.size(), 2u);
+  EXPECT_EQ(half.sys[0].color, SkColorSetRGB(0x80, 0x80, 0x80));
+  EXPECT_EQ(half.sys[1].color, SK_ColorRED);  // new token: no fade source
+  EXPECT_EQ(OmarchyColorMap::Interpolate(from, to, 0).sys[0].color,
+            SK_ColorBLACK);
+  EXPECT_EQ(OmarchyColorMap::Interpolate(from, to, 1).sys[0].color,
+            SK_ColorWHITE);
+}
+
+TEST(OmarchyColorMapTest, TransitionDefaultsAndParse) {
+  EXPECT_EQ(OmarchyColorMap::CreateDefault()->transition().duration_ms, 300);
+  std::vector<std::string> errors;
+  auto map = OmarchyColorMap::Parse(R"json({"transition": {"duration_ms": 0}})json",
+                                    &errors);
+  ASSERT_TRUE(map);
+  EXPECT_EQ(map->transition().duration_ms, 0);
+}
+
 }  // namespace
 }  // namespace omarchium

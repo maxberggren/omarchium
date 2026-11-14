@@ -13,6 +13,14 @@ action("color_map_default") {
   ]
 }
 
+# Dependency-free flag other Chromium code can query.
+source_set("state") {
+  sources = [
+    "omarchy_theme_sync_state.cc",
+    "omarchy_theme_sync_state.h",
+  ]
+}
+
 # Palette + color map: no browser dependencies, shared by the tests and tools.
 source_set("color_map") {
   sources = [
@@ -45,7 +53,10 @@ source_set("theme") {
     "omarchy_theme_sync.cc",
     "omarchy_theme_sync.h",
   ]
-  public_deps = [ ":color_map" ]
+  public_deps = [
+    ":color_map",
+    ":state",
+  ]
   deps = [
     "//base",
     "//third_party/fontconfig",

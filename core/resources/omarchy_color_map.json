@@ -39,6 +39,11 @@
     "stock_address_bar_radius": 17
   },
 
+  "transition": {
+    "//": "Crossfade between themes when Omarchy switches, in ms (0 = instant). Light/dark flips at the end of the fade.",
+    "duration_ms": 300
+  },
+
   "font": {
     "//": "Browser UI font family. \"omarchy\" follows the Omarchy system font (fontconfig's monospace, set by `omarchy font set`); \"stock\" keeps the GTK font; anything else is a family name. Size and weight still come from GTK. Web pages keep their own fonts.",
     "ui": "omarchy"

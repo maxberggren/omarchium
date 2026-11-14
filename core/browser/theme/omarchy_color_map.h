@@ -68,6 +68,11 @@ class OmarchyColorMap {
     std::string family;  // kFamily only
   };
 
+  // The "transition" section.
+  struct Transition {
+    int duration_ms = 300;
+  };
+
   OmarchyColorMap();
   OmarchyColorMap(const OmarchyColorMap&) = delete;
   OmarchyColorMap& operator=(const OmarchyColorMap&) = delete;
@@ -90,6 +95,13 @@ class OmarchyColorMap {
   const std::string& source() const { return source_; }
   const Shape& shape() const { return shape_; }
   const Font& font() const { return font_; }
+  const Transition& transition() const { return transition_; }
+
+  // Blends two resolved color sets, token by token: `t` = 0 gives `from`,
+  // 1 gives `to`. Tokens only in `to` jump straight to their new value.
+  static Resolved Interpolate(const Resolved& from,
+                              const Resolved& to,
+                              float t);
 
   // Exposed for tests.
   static std::optional<Expr> ParseExpr(std::string_view src,
@@ -99,6 +111,7 @@ class OmarchyColorMap {
   std::string source_;
   Shape shape_;
   Font font_;
+  Transition transition_;
   std::map<std::string, Expr, std::less<>> vars_;
   std::vector<Entry> sys_;
   std::vector<Entry> chrome_;

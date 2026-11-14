@@ -11,6 +11,8 @@
 #include "base/files/file_path.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/sequence_bound.h"
+#include "base/time/time.h"
+#include "base/timer/timer.h"
 #include "omarchium/browser/theme/omarchy_color_map.h"
 #include "omarchium/browser/theme/omarchy_palette.h"
 
@@ -69,6 +71,9 @@ class OmarchyThemeSync {
   void AddChromeMixer(ui::ColorProvider* provider,
                       const ui::ColorProviderKey& key) const;
   int FilterCornerRadius(int radius) const;
+  void OnTransitionTick();
+  void SetColorScheme(std::optional<bool> dark);
+  void Refresh();
 
   const base::FilePath colors_path_;
   const base::FilePath user_map_path_;
@@ -77,7 +82,19 @@ class OmarchyThemeSync {
   Files last_files_;
   std::optional<OmarchyPalette> palette_;
   std::unique_ptr<OmarchyColorMap> map_;
-  OmarchyColorMap::Resolved colors_;
+  OmarchyColorMap::Resolved target_;  // what the theme resolves to
+  bool target_dark_ = true;
+
+  // What the mixers paint right now: `target_`, or a blend on the way to it
+  // during a crossfade. `shown_dark_` flips at the end of the fade.
+  OmarchyColorMap::Resolved shown_;
+  bool shown_dark_ = true;
+  bool has_shown_ = false;
+
+  OmarchyColorMap::Resolved transition_from_;
+  base::TimeTicks transition_start_;
+  base::TimeDelta transition_duration_;
+  base::RepeatingTimer transition_timer_;
   std::optional<int> address_bar_radius_;  // nullopt: stock radii
   std::optional<std::string> ui_font_;     // nullopt: toolkit font
 
