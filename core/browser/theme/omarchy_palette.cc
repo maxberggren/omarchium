@@ -96,7 +96,9 @@ std::optional<OmarchyPalette> OmarchyPalette::Parse(std::string_view toml) {
 
   const SkColor bg = p.background;
   const SkColor fg = p.foreground;
-  auto blend = color_utils::AlphaBlend;  // (fg, bg, weight of fg)
+  auto blend = [](SkColor fg_color, SkColor bg_color, float weight_of_fg) {
+    return color_utils::AlphaBlend(fg_color, bg_color, weight_of_fg);
+  };
 
   p.accent = color("accent").value_or(color("blue").value_or(fg));
   p.selection = color("selection").value_or(blend(p.accent, bg, 0.3f));

@@ -46,7 +46,7 @@ TEST(OmarchyColorMapTest, DefaultMapParsesCleanly) {
 
 TEST(OmarchyColorMapTest, Functions) {
   std::vector<std::string> errors;
-  auto map = OmarchyColorMap::Parse(R"({
+  auto map = OmarchyColorMap::Parse(R"json({
     "vars": { "b": "a", "a": "mix(white, black, 0.5)" },
     "sys": {
       "kColorSysPrimary": "b",
@@ -55,7 +55,7 @@ TEST(OmarchyColorMapTest, Functions) {
       "kColorSysTertiary": "dark(#ff0000, #00ff00)"
     },
     "chrome": { "kColorToolbar": "#123" }
-  })", &errors);
+  })json", &errors);
   ASSERT_TRUE(map);
   ASSERT_TRUE(errors.empty()) << errors.front();
   auto r = map->Evaluate(Palette(), &errors);
@@ -69,7 +69,7 @@ TEST(OmarchyColorMapTest, Functions) {
 
 TEST(OmarchyColorMapTest, ReportsErrors) {
   std::vector<std::string> errors;
-  auto map = OmarchyColorMap::Parse(R"({
+  auto map = OmarchyColorMap::Parse(R"json({
     "vars": { "x": "y", "y": "x" },
     "sys": {
       "kColorNotARealId": "accent",
@@ -78,7 +78,7 @@ TEST(OmarchyColorMapTest, ReportsErrors) {
       "kColorSysTertiary": "nope"
     },
     "shape": { "address_bar_radius": "round" }
-  })", &errors);
+  })json", &errors);
   ASSERT_TRUE(map);
   EXPECT_EQ(errors.size(), 2u);  // unknown id, bad shape value
   auto r = map->Evaluate(Palette(), &errors);
