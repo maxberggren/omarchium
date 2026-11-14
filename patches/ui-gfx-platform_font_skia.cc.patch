@@ -1,5 +1,5 @@
 diff --git a/ui/gfx/platform_font_skia.cc b/ui/gfx/platform_font_skia.cc
-index 64f072febc5db29de74a6f5dc1fd43403eb6b04e..a3f802a81a0c3d07c357d833455faeabd8ba7d54 100644
+index 64f072febc5db29de74a6f5dc1fd43403eb6b04e..d707b4664fe41c2919fb4cac62651dc974d844c0 100644
 --- a/ui/gfx/platform_font_skia.cc
 +++ b/ui/gfx/platform_font_skia.cc
 @@ -47,6 +47,12 @@ const char kFallbackFontFamilyName[] = "sans";
@@ -15,18 +15,36 @@ index 64f072febc5db29de74a6f5dc1fd43403eb6b04e..a3f802a81a0c3d07c357d833455faeab
  // The default font, used for the default constructor.
  scoped_refptr<PlatformFontSkia>& GetDefaultFont() {
    static base::NoDestructor<scoped_refptr<PlatformFontSkia>> default_font;
-@@ -202,6 +208,10 @@ void PlatformFontSkia::EnsuresDefaultFontIsInitialized() {
+@@ -202,6 +208,28 @@ void PlatformFontSkia::EnsuresDefaultFontIsInitialized() {
      params = gfx::GetFontRenderParams(FontRenderParamsQuery(), nullptr);
    }
  
-+  if (DefaultFontFamilyOverride()) {
++  if (DefaultFontFamilyOverride() && *DefaultFontFamilyOverride() != family) {
++    // Omarchium: swap the family but keep the toolkit font's line height, so
++    // layouts (toolbar, tabs, omnibox) stay pixel-identical. Monospace fonts
++    // run taller at the same size, which at fractional scales leaves 1px
++    // gaps between rows of the browser frame.
++    auto line_height = [&](const std::string& name, int size) {
++      std::string resolved = name;
++      bool ok = false;
++      SkFont font(CreateSkTypeface(style & Font::ITALIC, weight, &resolved, &ok),
++                  size);
++      SkFontMetrics metrics;
++      font.getMetrics(&metrics);
++      return SkScalarCeilToInt(-metrics.fAscent) +
++             SkScalarCeilToInt(metrics.fDescent);
++    };
++    const int target_height = line_height(family, size_pixels);
 +    family = *DefaultFontFamilyOverride();
++    while (size_pixels > 1 && line_height(family, size_pixels) > target_height) {
++      --size_pixels;
++    }
 +  }
 +
    bool success = false;
    sk_sp<SkTypeface> typeface =
        CreateSkTypeface(style & Font::ITALIC, weight, &family, &success);
-@@ -223,6 +233,12 @@ void PlatformFontSkia::EnsuresDefaultFontIsInitialized() {
+@@ -223,6 +251,12 @@ void PlatformFontSkia::EnsuresDefaultFontIsInitialized() {
                                            size_pixels, style, weight, params);
  }
  
