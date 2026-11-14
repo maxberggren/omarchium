@@ -13,5 +13,12 @@ if [[ -f $flags_file ]]; then
 fi
 
 export CHROME_DESKTOP=omarchium.desktop
+
+# This build ships no Google API key, so Chromium shows a "Google API keys are
+# missing" banner. "no" is Chromium's documented value for "none, and don't
+# nag"; the Google services that need a key were off either way. To turn them
+# on, export your own GOOGLE_API_KEY (and GOOGLE_DEFAULT_CLIENT_ID/SECRET for
+# sign-in) before launching; it takes precedence.
+export GOOGLE_API_KEY=${GOOGLE_API_KEY:-no}
 exec "$(dirname "$(readlink -f "$0")")/../lib/omarchium/chrome" \
   --user-data-dir="$config/omarchium" --class=omarchium "${flags[@]}" "$@"
